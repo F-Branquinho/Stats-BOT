@@ -92,7 +92,7 @@ test/               node --test
 - `player_profile(steam64_id PK, aim, utility, positioning, premier, faceit_elo, updated_at)` — latest Leetify profile ratings, for the "aim" column.
 - `guilds(guild_id PK, report_channel_id, language, report_enabled)`.
 - `reports(guild_id, month, sent_at, PK(guild_id, month))` — prevents repeats.
-- `settings(key PK, value)` — bot token, client secret, public URL, Leetify key, daily budget (written by the setup page).
+- Bot token, client secret, public URL, Leetify key and daily budget live in `data/settings.json` (or `.env`), using Discord-BOT's `settings.js`, not in SQLite.
 - `api_usage(day PK, requests)`.
 
 A player appears in a guild's table if they are linked and are a member of that guild (checked with the bot's member cache).
