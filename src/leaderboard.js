@@ -37,6 +37,9 @@ function resumir(steam64Id, partidas, perfil, mensal) {
         flashes: soma('flash_thrown'),
         cegos: soma('flash_hit_foe'),
         teamflashes: soma('flash_hit_friend'),
+        // Per flash thrown, so it can go over 100% (one flash can blind two people)
+        flashPct: dividir(soma('flash_hit_foe'), soma('flash_thrown')),
+        tfPct: dividir(soma('flash_hit_friend'), soma('flash_thrown')),
         leetify: comLeetify.length ? arredondar(comLeetify.reduce((t, p) => t + p.leetify_rating, 0) / comLeetify.length) : null,
         aim: perfil?.aim ?? null,
         elegivel: !mensal || partidas.length >= MIN_PARTIDAS_MVP,

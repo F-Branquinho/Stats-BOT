@@ -2,6 +2,10 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.5.0
+
+- New **Flash %** and **TF %** columns: enemies and teammates blinded per flash thrown (can go over 100%, since one flash can blind several people). Also on the player profile and in `/stats`. The 💡 and 🤦 awards still use totals.
+
 ## v0.4.0
 
 - The table shows an emoji next to whoever is leading each award this month (🏆 MVP, 🔫 kills, 🎯 aim, 🧠 HS%, 💡 enemies flashed, 🤦 team flashes, 🎮 matches), with the same rules as the monthly report. Last month shows the winners; all time shows none.

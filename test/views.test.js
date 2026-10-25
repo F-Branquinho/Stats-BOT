@@ -83,3 +83,11 @@ test('all time has no award emojis', () => {
     assert.ok(!html.includes('class="premio"'));
     assert.ok(!html.includes('class="legenda"'));
 });
+
+test('the table has Flash % and TF % columns', () => {
+    const html = paginaTabela({ sessao, guild, linhas: [linha({ flashPct: 0.75, tfPct: 1.5 })], periodo: 'mes', ordem: 'flashPct' });
+    assert.match(html, /ordem=flashPct" class="ativo">Flash %/);
+    assert.match(html, /ordem=tfPct">TF %/);
+    assert.match(html, /<td>75%<\/td>/);
+    assert.match(html, /<td>150%<\/td>/);
+});

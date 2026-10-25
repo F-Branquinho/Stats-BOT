@@ -28,6 +28,8 @@ const COLUNAS = [
     ['flashes', 'Flashes', String],
     ['cegos', 'Enemies flashed', String],
     ['teamflashes', 'Team flashes', String],
+    ['flashPct', 'Flash %', percentagem],
+    ['tfPct', 'TF %', percentagem],
     ['leetify', 'Leetify', leetify],
 ];
 const COLUNAS_VALIDAS = new Set(COLUNAS.map(([c]) => c));
@@ -100,7 +102,8 @@ ${topoServidor(guild, `CS2 stats · ${nomePeriodo(periodo)}`)}
 ${tabela}
 ${mensal && linhas.length ? `<p class="legenda">${periodo === 'mes' ? 'Leading this month' : 'Winners'}: ${LEGENDA}</p>` : ''}
 <p class="ajuda">Points per match: win 3, draw 1, loss 0, plus 0–5 for the HLTV 1.0 rating (0.80 → 1, 0.95 → 2, 1.05 → 3, 1.20 → 4, 1.40 → 5).
-MVP of the month: most points with at least 5 matches. Aim is the current Leetify aim rating.</p>`, { larga: true });
+MVP of the month: most points with at least 5 matches. Aim is the current Leetify aim rating.
+Flash % and TF % are enemies and teammates blinded per flash thrown (one flash can blind several people, so they can go over 100%).</p>`, { larga: true });
 }
 
 function paginaPerfil({ sessao, guild, jogador, total, meses, partidas }) {
@@ -108,7 +111,7 @@ function paginaPerfil({ sessao, guild, jogador, total, meses, partidas }) {
         ? `<div class="cartoes">
   <div class="cartao"><h3>${total.pontos} points</h3><p>${total.partidas} matches · ${total.vitorias}–${total.empates}–${total.derrotas}</p></div>
   <div class="cartao"><h3>HLTV ${decimal(total.hltv)}</h3><p>K/D ${decimal(total.kd)} · HS ${percentagem(total.hs)} · ${total.kills} kills</p></div>
-  <div class="cartao"><h3>💡 ${total.cegos} · 🤦 ${total.teamflashes}</h3><p>Enemies flashed · team flashes (${total.flashes} flashes thrown)</p></div>
+  <div class="cartao"><h3>💡 ${total.cegos} · 🤦 ${total.teamflashes}</h3><p>Enemies flashed · team flashes (${total.flashes} flashes thrown: ${percentagem(total.flashPct)} · ${percentagem(total.tfPct)})</p></div>
 </div>`
         : '<div class="cartao"><p>No counted matches yet.</p></div>';
 

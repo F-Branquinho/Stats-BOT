@@ -42,6 +42,8 @@ test('totals and averages for this month', () => {
     assert.strictEqual(l.flashes, 20);
     assert.strictEqual(l.cegos, 12);
     assert.strictEqual(l.teamflashes, 4);
+    assert.strictEqual(l.flashPct, 12 / 20);
+    assert.strictEqual(l.tfPct, 4 / 20);
     assert.strictEqual(l.aim, 77);
     assert.strictEqual(l.leetify, 0.05);
     const ps = db.partidasDe(['s1'], '2026-10-01', null);
@@ -85,6 +87,7 @@ test('zero deaths and zero kills do not divide by zero', () => {
     assert.strictEqual(l.kd, 0);
     assert.strictEqual(l.hs, 0);
     assert.strictEqual(l.precisao, 0);
+    assert.strictEqual(l.flashPct, 0.6);
 });
 
 test('porMes groups a player\'s matches by Lisbon month, newest first', () => {
@@ -107,4 +110,12 @@ test('ordenarPor a column, ties by points', () => {
     ];
     assert.deepStrictEqual(ordenarPor(linhas, 'kills').map((l) => l.steam64Id), ['b', 'c', 'a']);
     assert.deepStrictEqual(ordenarPor(linhas, 'naoexiste').map((l) => l.steam64Id), ['c', 'a', 'b']);
+});
+
+test('flash percentages are 0 without flashes thrown', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1', { flashbang_thrown: 0, flashbang_hit_foe: 0, flashbang_hit_friend: 0 });
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.strictEqual(l.flashPct, 0);
+    assert.strictEqual(l.tfPct, 0);
 });

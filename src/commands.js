@@ -73,8 +73,8 @@ function linhaStats(l, codigo) {
         `K/D ${l.kd.toFixed(2)}`,
         `HS ${percentagem(l.hs)}`,
         `🎯 ${percentagem(l.precisao)}`,
-        `💡 ${l.cegos}`,
-        `🤦 ${l.teamflashes}`,
+        `💡 ${l.cegos} (${percentagem(l.flashPct)})`,
+        `🤦 ${l.teamflashes} (${percentagem(l.tfPct)})`,
         `${l.partidas} ${t.partidasN}`,
     ].join(' · ');
 }

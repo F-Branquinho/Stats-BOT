@@ -181,3 +181,9 @@ test('respostaAdd picks the right message', () => {
     assert.match(respostaAdd({ ...base, movidoDe: 'd9' }, t, '<@d1>'), /<@d9>/);
     assert.match(respostaAdd({ ok: false, motivo: 'steam_ocupada' }, t, '<@d1>'), /already linked/);
 });
+
+test('linhaStats shows Flash % and TF %', () => {
+    const texto = linhaStats({ ...linha, flashPct: 0.683, tfPct: 0.15 }, 'pt');
+    assert.match(texto, /💡 41 \(68%\)/);
+    assert.match(texto, /🤦 9 \(15%\)/);
+});
