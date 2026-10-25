@@ -173,6 +173,49 @@ test('an existing database gets the HE columns, and old matches are filled in wh
     const novo = db.guardarPartida(premier, { ...stats(premier, 's1'), he_thrown: 10, he_foes_damage_avg: 2.4, he_friends_damage_avg: 0 });
     assert.strictEqual(novo, false);
     assert.strictEqual(db.partidasDe(['s1'], null, null)[0].he_foes_damage, 24);
-    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 2);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 3);
     db.fechar();
+});
+
+const COLUNAS_V3 = ['total_damage', 'flash_duration', 'flash_assist', 'utility_on_death', 'mvps', 'trade_kill_attempts', 'trade_kills_succeed',
+    'traded_death_attempts', 'traded_deaths_succeed', 'shots_fired', 'shots_hit_foe', 'spray_accuracy', 'counter_strafing_good', 'counter_strafing_all'];
+
+test('v3 stats are stored: damage, flash duration and assists, unused utility, trades, MVPs, aim details', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPartida(premier, {
+        ...stats(premier, 's1'), total_damage: 2004, flashbang_hit_foe_avg_duration: 3.5, flash_assist: 4, utility_on_death_avg: 52.6,
+        mvps: 3, trade_kill_attempts: 7, trade_kills_succeed: 3, traded_death_attempts: 6, traded_deaths_succeed: 2,
+        shots_fired: 405, shots_hit_foe: 63, spray_accuracy: 0.35, counter_strafing_shots_good: 51, counter_strafing_shots_all: 63,
+    });
+    const [p] = db.partidasDe(['s1'], null, null);
+    assert.deepStrictEqual(COLUNAS_V3.map((c) => p[c]), [2004, 3.5, 4, 52.6, 3, 7, 3, 6, 2, 405, 63, 0.35, 51, 63]);
+});
+
+test('a v2 database gets the v3 columns, filled in when Leetify sends the match again', () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const ficheiro = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stats-db-')), 'stats.db');
+    const antiga = abrirBD(ficheiro);
+    antiga.guardarPartida(premier, stats(premier, 's1'));
+    for (const c of COLUNAS_V3) antiga.bd.exec(`ALTER TABLE player_matches DROP COLUMN ${c}`);
+    antiga.bd.exec('ALTER TABLE player_profile DROP COLUMN clutch; ALTER TABLE player_profile DROP COLUMN opening;');
+    antiga.bd.pragma('user_version = 2');
+    antiga.fechar();
+
+    const db = abrirBD(ficheiro);
+    assert.strictEqual(db.partidasDe(['s1'], null, null)[0].total_damage, null);
+    db.guardarPartida(premier, { ...stats(premier, 's1'), total_damage: 1974, mvps: 2 });
+    const [p] = db.partidasDe(['s1'], null, null);
+    assert.strictEqual(p.total_damage, 1974);
+    assert.strictEqual(p.mvps, 2);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 3);
+    db.fechar();
+});
+
+test('guardarPerfil also keeps the clutch and opening ratings', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPerfil('s1', { rating: { aim: 85, clutch: 0.1221, opening: -0.0021 } });
+    assert.strictEqual(db.perfil('s1').clutch, 0.1221);
+    assert.strictEqual(db.perfil('s1').opening, -0.0021);
 });

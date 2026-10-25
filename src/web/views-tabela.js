@@ -2,6 +2,7 @@
 const { esc, avatarUtilizador, iconeServidor, layout, cabecalho } = require('./views');
 const { nomeDoMes } = require('../i18n');
 const { agoraLisboa } = require('../periodos');
+const { ordenarPor } = require('../leaderboard');
 
 const PERIODOS = [['mes', 'This month'], ['mes_passado', 'Last month'], ['sempre', 'All time']];
 const FONTES = { matchmaking: 'Premier', matchmaking_competitive: 'Competitive', faceit: 'FACEIT' };
@@ -15,27 +16,83 @@ const nomeMapa = (mapa) => {
     return nome ? nome[0].toUpperCase() + nome.slice(1) : '—';
 };
 
-// [column key, header, how the value is shown]
-const COLUNAS = [
-    ['partidas', 'Matches', String],
-    ['vitorias', 'W–D–L', (_, l) => `${l.vitorias}–${l.empates}–${l.derrotas}`],
-    ['pontos', 'Points', String],
-    ['hltv', 'HLTV', decimal],
-    ['kills', 'Kills', String],
-    ['kd', 'K/D', decimal],
-    ['hs', 'HS%', percentagem],
-    ['aim', 'Aim', (v) => (typeof v === 'number' ? Math.round(v) : '—')],
-    ['flashes', 'Flashes', String],
-    ['cegos', 'Enemies flashed', String],
-    ['teamflashes', 'Team flashes', String],
-    ['flashPct', 'Flash %', percentagem],
-    ['tfPct', 'TF %', percentagem],
-    ['heDano', 'HE dmg', (v) => Math.round(v ?? 0)],
-    ['hePorNade', 'HE/nade', (v) => (v ?? 0).toFixed(1)],
-    ['heTeam', 'HE team', (v) => Math.round(v ?? 0)],
-    ['leetify', 'Leetify', leetify],
+// Formats for values that can be missing (matches stored before a column existed): shown as "—"
+const ou = (formato) => (v, l) => (typeof v === 'number' ? formato(v, l) : '—');
+const inteiro = ou((v) => String(Math.round(v)));
+
+// The tables on the server page. Each one is sorted by its own query parameter.
+// Columns: [key, header, format, lowest first?]
+const TABELAS = [
+    {
+        id: 'principal', param: 'ordem', padrao: 'pontos', titulo: null,
+        colunas: [
+            ['partidas', 'Matches', String],
+            ['vitorias', 'W–D–L', (_, l) => `${l.vitorias}–${l.empates}–${l.derrotas}`],
+            ['pontos', 'Points', String],
+            ['hltv', 'HLTV', decimal],
+            ['adr', 'ADR', inteiro],
+            ['kills', 'Kills', String],
+            ['kd', 'K/D', decimal],
+            ['hs', 'HS%', percentagem],
+            ['aim', 'Aim', inteiro],
+            ['leetify', 'Leetify', leetify],
+        ],
+    },
+    {
+        id: 'utilitarios', param: 'u', padrao: 'cegos', titulo: '💣 Utility',
+        colunas: [
+            ['flashes', 'Flashes', String],
+            ['cegos', 'Enemies flashed', String],
+            ['flashPct', 'Flash %', percentagem],
+            ['duracaoCegueira', 'Blind time', ou((v) => `${v.toFixed(1)}s`)],
+            ['flashKills', 'Flash → kill', String],
+            ['flashAssists', 'Flash assists', String],
+            ['teamflashes', 'Team flashes', String],
+            ['tfPct', 'TF %', percentagem],
+            ['heAtiradas', 'HEs', String],
+            ['heDano', 'HE dmg', inteiro],
+            ['hePorNade', 'HE/nade', ou((v) => v.toFixed(1))],
+            ['heTeam', 'HE team', inteiro],
+            ['molotovs', 'Molotovs', String],
+            ['smokes', 'Smokes', String],
+            ['granadasPorRonda', 'Nades/round', ou((v) => v.toFixed(2))],
+            ['utilDesperdicada', 'Unused util', ou((v) => `$${Math.round(v)}`)],
+        ],
+    },
+    {
+        id: 'multikills', param: 'k', padrao: 'k3', titulo: '🔥 Multi-kills and trades',
+        colunas: [
+            ['k2', '2K', String],
+            ['k3', '3K', String],
+            ['k4', '4K', String],
+            ['k5', 'ACE', String],
+            ['mvps', 'MVP stars', String],
+            ['tradeKills', 'Trade kills', String],
+            ['tradePct', 'Trade %', ou(percentagem)],
+            ['tradedDeaths', 'Traded deaths', String],
+            ['tradedPct', 'Traded %', ou(percentagem)],
+            ['clutch', 'Clutch', leetify],
+            ['opening', 'Opening', leetify],
+        ],
+    },
+    {
+        id: 'mira', param: 'm', padrao: 'precisao', titulo: '🎯 Aim',
+        colunas: [
+            ['precisaoGeral', 'Accuracy', ou(percentagem)],
+            ['precisao', 'Accuracy (spotted)', percentagem],
+            ['hs', 'HS%', percentagem],
+            ['spray', 'Spray', ou(percentagem)],
+            ['counterStrafing', 'Counter-strafe', ou(percentagem)],
+            ['preaim', 'Preaim', ou((v) => `${v.toFixed(1)}°`), true],
+            ['reacao', 'Reaction', ou((v) => `${Math.round(v)} ms`), true],
+        ],
+    },
 ];
-const COLUNAS_VALIDAS = new Set(COLUNAS.map(([c]) => c));
+
+/** The column a table is sorted by: the one asked for, if that table has it, else its default. */
+function ordemValida(tabela, pedida) {
+    return tabela.colunas.some(([c]) => c === pedida) ? pedida : tabela.padrao;
+}
 
 // Award → tooltip text and how its value is shown
 const PREMIOS = {
@@ -71,42 +128,60 @@ function topoServidor(guild, subtitulo) {
 }
 
 /**
- * `linhas` are leaderboard rows plus { discordId, nome, avatar }, already sorted.
+ * `linhas` are leaderboard rows plus { discordId, nome, avatar }. The main table is sorted by `ordem`,
+ * the others by `ordens` ({ u, k, m }: utility, multi-kills, aim).
  * `premios`: Map steam64Id → awards that player is winning (report.premiosPorJogador); empty for all time.
  */
-function paginaTabela({ sessao, guild, linhas, periodo, ordem, premios = new Map() }) {
-    const url = (p, o) => esc(`/s/${guild.id}?periodo=${p}&ordem=${o}`);
+function paginaTabela({ sessao, guild, linhas, periodo, ordem, ordens = {}, premios = new Map() }) {
     const mensal = periodo !== 'sempre';
+    // Every link keeps the period and the sort of every table
+    const atuais = Object.fromEntries(TABELAS.map((t) => [t.param, ordemValida(t, t.param === 'ordem' ? ordem : ordens[t.param])]));
+    const url = (mudancas = {}, ancora = '') => {
+        const p = { periodo, ...atuais, ...mudancas };
+        return esc(`/s/${guild.id}?periodo=${p.periodo}&${TABELAS.map((t) => `${t.param}=${p[t.param]}`).join('&')}${ancora}`);
+    };
 
-    const periodos = PERIODOS.map(([p, nome]) => `<a href="${url(p, ordem)}"${p === periodo ? ' class="ativo"' : ''}>${nome}</a>`).join('');
-    const cabecalhos = COLUNAS.map(([c, nome]) => `<th><a href="${url(periodo, c)}"${c === ordem ? ' class="ativo"' : ''}>${nome}</a></th>`).join('');
-    const corpo = linhas.map((l, i) => {
-        const nota = mensal && !l.elegivel ? '<span class="nota">not eligible for MVP (under 5 matches)</span>' : '';
-        const celulas = COLUNAS.map(([c, , formato]) => `<td>${esc(formato(l[c], l))}</td>`).join('');
-        return `<tr${mensal && !l.elegivel ? ' class="inelegivel"' : ''}>
+    const jogador = (l, comPremios) => {
+        const nota = comPremios && mensal && !l.elegivel ? '<span class="nota">not eligible for MVP (under 5 matches)</span>' : '';
+        const emojis = comPremios && mensal ? emojisPremios(premios.get(l.steam64Id), periodo) : '';
+        return `<td class="jogador"><a href="/s/${esc(guild.id)}/p/${esc(l.discordId)}"><img class="avatar mini" src="${avatarUtilizador(l.discordId, l.avatar)}" alt="">${esc(l.nome)}</a>${emojis}${nota}</td>`;
+    };
+
+    function renderTabela(t) {
+        const coluna = atuais[t.param];
+        const crescente = Boolean(t.colunas.find(([c]) => c === coluna)?.[3]);
+        const ordenadas = ordenarPor(linhas, coluna, { crescente });
+        const ancora = t.titulo ? `#${t.id}` : '';
+        const cabecalhos = t.colunas.map(([c, nome]) => `<th><a href="${url({ [t.param]: c }, ancora)}"${c === coluna ? ' class="ativo"' : ''}>${nome}</a></th>`).join('');
+        const corpo = ordenadas.map((l, i) => `<tr${mensal && !l.elegivel ? ' class="inelegivel"' : ''}>
   <td>${i + 1}</td>
-  <td class="jogador"><a href="/s/${esc(guild.id)}/p/${esc(l.discordId)}"><img class="avatar mini" src="${avatarUtilizador(l.discordId, l.avatar)}" alt="">${esc(l.nome)}</a>${mensal ? emojisPremios(premios.get(l.steam64Id), periodo) : ''}${nota}</td>
-  ${celulas}
-</tr>`;
-    }).join('');
-
-    const tabela = linhas.length
-        ? `<div class="tabela-wrap"><table>
+  ${jogador(l, !t.titulo)}
+  ${t.colunas.map(([c, , formato]) => `<td>${esc(formato(l[c], l))}</td>`).join('')}
+</tr>`).join('');
+        return `${t.titulo ? `<h2 class="titulo-tabela" id="${t.id}">${t.titulo}</h2>` : ''}<div class="tabela-wrap"><table>
 <thead><tr><th>#</th><th>Player</th>${cabecalhos}</tr></thead>
 <tbody>${corpo}</tbody>
-</table></div>`
-        : `<div class="cartao"><p>No counted matches in this period yet.</p>
+</table></div>`;
+    }
+
+    const periodos = PERIODOS.map(([p, nome]) => `<a href="${url({ periodo: p })}"${p === periodo ? ' class="ativo"' : ''}>${nome}</a>`).join('');
+    const vazio = `<div class="cartao"><p>No counted matches in this period yet.</p>
   <p class="suave">To show up here, <a href="/link">link your Steam account</a> and play Premier, Competitive or FACEIT. New matches are fetched every 30 minutes from 16:00 to 04:00.</p></div>`;
+    const [principal, ...outras] = TABELAS;
 
     return layout(`${guild.name}: CS2 stats`, `
 ${cabecalho(sessao)}
 ${topoServidor(guild, `CS2 stats · ${nomePeriodo(periodo)}`)}
 <nav class="periodos">${periodos}</nav>
-${tabela}
+${linhas.length ? renderTabela(principal) : vazio}
 ${mensal && linhas.length ? `<p class="legenda">${periodo === 'mes' ? 'Leading this month' : 'Winners'}: ${LEGENDA}</p>` : ''}
 <p class="ajuda">Points per match: win 3, draw 1, loss 0, plus 0–5 for the HLTV 1.0 rating (0.80 → 1, 0.95 → 2, 1.05 → 3, 1.20 → 4, 1.40 → 5).
-MVP of the month: most points with at least 5 matches. Aim is the current Leetify aim rating.
-Flash % and TF % are enemies and teammates blinded per flash thrown (one flash can blind several people, so they can go over 100%).</p>`, { larga: true });
+MVP of the month: most points with at least 5 matches. Aim, Clutch and Opening are the current Leetify ratings.</p>
+${linhas.length ? outras.map(renderTabela).join('\n') : ''}
+${linhas.length ? `<p class="ajuda">Flash % and TF % are enemies and teammates blinded per flash thrown (one flash can blind several people, so they can go over 100%).
+Blind time is the average per enemy flashed. Unused util is the average value of grenades still held when dying.
+Trade % is how often a trade attempt worked; Traded % is how often a teammate avenged the death.
+Leetify doesn't give molotov damage or 1vX clutches. "—" means no data yet for matches stored before that column existed.</p>` : ''}`, { larga: true });
 }
 
 function paginaPerfil({ sessao, guild, jogador, total, meses, partidas }) {
@@ -149,4 +224,4 @@ ${partidas.length ? `<div class="tabela-wrap"><table><thead><tr><th>When</th><th
 </div>`, { larga: true });
 }
 
-module.exports = { COLUNAS_VALIDAS, paginaTabela, paginaPerfil };
+module.exports = { TABELAS, ordemValida, paginaTabela, paginaPerfil };

@@ -7,6 +7,10 @@ const guild = { id: 'g1', name: 'Os Bons', icon: null };
 
 function linha(extra = {}) {
     return {
+        adr: 81.4, heAtiradas: 20, heDano: 150.4, hePorNade: 10.04, heTeam: 9.6, flashPct: 0.75, tfPct: 1.5,
+        duracaoCegueira: 3.24, flashKills: 6, flashAssists: 4, molotovs: 12, smokes: 20, granadasPorRonda: 0.5, utilDesperdicada: 161.1,
+        k2: 8, k3: 3, k4: 1, k5: 1, mvps: 12, tradeKills: 5, tradePct: 0.4, tradedDeaths: 6, tradedPct: 0.5, clutch: 0.1221, opening: -0.0021,
+        precisaoGeral: 0.17, spray: 0.35, counterStrafing: 0.81, preaim: 6.26, reacao: 375,
         steam64Id: 's1', discordId: 'd1', nome: 'Ana', avatar: null,
         partidas: 6, vitorias: 3, empates: 1, derrotas: 2, pontos: 30, hltv: 1.05, kills: 120, deaths: 100, kd: 1.2,
         hs: 0.45, precisao: 0.3, flashes: 40, cegos: 20, teamflashes: 4, leetify: 0.01, aim: 70.2, elegivel: true, ...extra,
@@ -23,13 +27,6 @@ test('players under 5 matches are marked as not eligible in monthly periods', ()
     const html = paginaTabela({ sessao, guild, linhas: [linha({ elegivel: false, partidas: 3 })], periodo: 'mes', ordem: 'pontos' });
     assert.match(html, /class="inelegivel"/);
     assert.match(html, /not eligible for MVP/);
-});
-
-test('column headers link to sorting, keeping the period', () => {
-    const html = paginaTabela({ sessao, guild, linhas: [linha()], periodo: 'mes_passado', ordem: 'kills' });
-    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills" class="ativo"/);
-    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=hltv"/);
-    assert.match(html, /href="\/s\/g1\?periodo=sempre&amp;ordem=kills"/);
 });
 
 test('rows link to the player profile and show the values', () => {
@@ -84,20 +81,47 @@ test('all time has no award emojis', () => {
     assert.ok(!html.includes('class="legenda"'));
 });
 
-test('the table has Flash % and TF % columns', () => {
-    const html = paginaTabela({ sessao, guild, linhas: [linha({ flashPct: 0.75, tfPct: 1.5 })], periodo: 'mes', ordem: 'flashPct' });
-    assert.match(html, /ordem=flashPct" class="ativo">Flash %/);
-    assert.match(html, /ordem=tfPct">TF %/);
-    assert.match(html, /<td>75%<\/td>/);
-    assert.match(html, /<td>150%<\/td>/);
+
+const pagina = (extra = {}) => paginaTabela({ sessao, guild, linhas: [linha()], periodo: 'mes', ordem: 'pontos', ordens: {}, ...extra });
+
+test('main table: core columns plus ADR, no utility columns', () => {
+    const html = pagina();
+    const principal = html.slice(0, html.indexOf('id="utilitarios"'));
+    assert.match(principal, />ADR</);
+    assert.match(principal, /<td>81<\/td>/);
+    assert.ok(!principal.includes('Flash %'));
+    assert.ok(!principal.includes('HE dmg'));
 });
 
-test('the table has HE damage columns', () => {
-    const html = paginaTabela({ sessao, guild, linhas: [linha({ heDano: 150.4, hePorNade: 10.04, heTeam: 9.6 })], periodo: 'mes', ordem: 'heDano' });
-    assert.match(html, /ordem=heDano" class="ativo">HE dmg/);
-    assert.match(html, /ordem=hePorNade">HE\/nade/);
-    assert.match(html, /ordem=heTeam">HE team/);
-    assert.match(html, /<td>150<\/td>/);
-    assert.match(html, /<td>10\.0<\/td>/);
-    assert.match(html, /<td>10<\/td>/);
+test('there are utility, multi-kill and aim tables below', () => {
+    const html = pagina();
+    for (const id of ['utilitarios', 'multikills', 'mira']) assert.match(html, new RegExp(`id="${id}"`));
+    assert.match(html, />Flash %</);
+    assert.match(html, />HE dmg</);
+    assert.match(html, />Molotovs</);
+    assert.match(html, />ACE</);
+    assert.match(html, />Trade %</);
+    assert.match(html, />Reaction</);
+});
+
+test('each table sorts on its own and keeps the other sorts and the period', () => {
+    const html = pagina({ periodo: 'mes_passado', ordem: 'kills', ordens: { u: 'heDano', k: 'k5', m: 'reacao' } });
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills&amp;u=heDano&amp;k=k5&amp;m=reacao" class="ativo">Kills/);
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills&amp;u=heDano&amp;k=k5&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills&amp;u=flashPct&amp;k=k5&amp;m=reacao#utilitarios">Flash %/);
+    assert.match(html, /href="\/s\/g1\?periodo=sempre&amp;ordem=kills&amp;u=heDano&amp;k=k5&amp;m=reacao"/);
+});
+
+test('utility, multi-kill and aim values are formatted', () => {
+    const html = pagina();
+    for (const valor of ['75%', '150%', '150', '10.0', '3.2s', '0.50', '$161', '40%', '17%', '81%', '6.3°', '375 ms', '+12.21']) {
+        assert.ok(html.includes(`<td>${valor}</td>`), valor);
+    }
+});
+
+test('a table sorted by a column orders its rows by it', () => {
+    const linhas = [linha({ steam64Id: 'a', discordId: 'da', nome: 'Alpha', k5: 0 }), linha({ steam64Id: 'b', discordId: 'db', nome: 'Bravo', k5: 3 })];
+    const html = paginaTabela({ sessao, guild, linhas, periodo: 'mes', ordem: 'pontos', ordens: { k: 'k5' } });
+    const multi = html.slice(html.indexOf('id="multikills"'), html.indexOf('id="mira"'));
+    assert.ok(multi.indexOf('Bravo') < multi.indexOf('Alpha'));
 });

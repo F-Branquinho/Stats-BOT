@@ -104,6 +104,7 @@ td.jogador a { color: var(--texto); text-decoration: none; font-weight: 600; }
 tr.inelegivel td { opacity: .55; }
 .premio { margin-left: 6px; cursor: help; }
 .legenda { font-size: .85rem; color: var(--suave); margin: 10px 0 0; }
+.titulo-tabela { font-size: 1.2rem; margin: 36px 0 12px; scroll-margin-top: 16px; }
 .nota { font-size: .75rem; color: var(--suave); display: block; font-weight: 400; }
 .res-V { color: var(--ok); font-weight: 700; } .res-D { color: var(--erro); font-weight: 700; } .res-E { color: var(--aviso); font-weight: 700; }
 @media (max-width: 860px) { .cartoes, .cartoes.duas { grid-template-columns: 1fr; } }

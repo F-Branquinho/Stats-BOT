@@ -2,6 +2,16 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.7.0
+
+- The server page has four tables, each sortable on its own:
+  - **Main**: matches, W–D–L, points, HLTV, **ADR** (new), kills, K/D, HS%, aim, Leetify.
+  - **💣 Utility**: flashes, enemies flashed, Flash %, blind time, flash → kill, flash assists, team flashes, TF %, HEs, HE damage, HE/nade, HE team, molotovs, smokes, nades per round, unused utility.
+  - **🔥 Multi-kills and trades**: 2K, 3K, 4K, ACE, MVP stars, trade kills and %, traded deaths and %, Leetify clutch and opening ratings.
+  - **🎯 Aim**: accuracy, accuracy with an enemy spotted, HS%, spray, counter-strafing, preaim and reaction time.
+- Leetify doesn't give 1vX clutches or molotov damage, so those aren't shown.
+- The database is upgraded automatically; matches stored before get the new columns the next time Leetify sends them (its last 100). Until then they show "—".
+
 ## v0.6.1
 
 - The Leetify rating column showed rounded values (+1.00, +5.00); it now shows the real average, e.g. +1.17.

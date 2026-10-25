@@ -2,11 +2,11 @@
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { IDIOMAS } = require('../i18n');
 const { definicoes } = require('../commands');
-const { tabela, ordenarPor, porMes } = require('../leaderboard');
+const { tabela, porMes } = require('../leaderboard');
 const { membrosLigados, temPermissao } = require('../membros');
 const { escolherVencedores, premiosPorJogador } = require('../report');
 const views = require('./views');
-const { COLUNAS_VALIDAS, paginaTabela, paginaPerfil } = require('./views-tabela');
+const { TABELAS, ordemValida, paginaTabela, paginaPerfil } = require('./views-tabela');
 
 const TIPOS_TEXTO = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
 const PERIODOS = new Set(['mes', 'mes_passado', 'sempre']);
@@ -80,16 +80,18 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
             const guild = servidorVisivel(req);
             if (!guild) return semAcesso(res);
             const periodo = PERIODOS.has(req.query.periodo) ? req.query.periodo : 'mes';
-            const ordem = COLUNAS_VALIDAS.has(req.query.ordem) ? req.query.ordem : 'pontos';
+            // Each table has its own sort parameter (ordem, u, k, m); unknown columns fall back to the default
+            const ordens = Object.fromEntries(TABELAS.map((t) => [t.param, ordemValida(t, req.query[t.param])]));
+            const { ordem } = ordens;
 
             const jogadores = await jogadoresDoServidor(guild);
-            const linhas = ordenarPor(tabela(db, [...jogadores.keys()], periodo), ordem).map((l) => {
+            const linhas = tabela(db, [...jogadores.keys()], periodo).map((l) => {
                 const j = jogadores.get(l.steam64Id);
                 return { ...l, discordId: j.discord_id, nome: j.name ?? j.discord_id, avatar: j.avatar };
             });
             // Awards are monthly: who is leading this month, or who won last month
             const premios = periodo === 'sempre' ? new Map() : premiosPorJogador(escolherVencedores(linhas));
-            res.send(paginaTabela({ sessao: req.sessao, guild, linhas, periodo, ordem, premios }));
+            res.send(paginaTabela({ sessao: req.sessao, guild, linhas, periodo, ordem, ordens, premios }));
         } catch (error) {
             next(error);
         }

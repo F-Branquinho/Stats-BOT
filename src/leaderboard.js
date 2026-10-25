@@ -10,10 +10,55 @@ function ordenarPorPontos(a, b) {
     return b.pontos - a.pontos || b.vitorias - a.vitorias || b.hltv - a.hltv || b.partidas - a.partidas;
 }
 
-/** Sorts by any numeric column (desc, empty values last); ties, and unknown columns, by points. */
-function ordenarPor(linhas, coluna) {
-    const valor = (l) => (typeof l[coluna] === 'number' ? l[coluna] : -Infinity);
+/**
+ * Sorts by any numeric column, highest first (or lowest first with `crescente`, for times and angles).
+ * Empty values go last; ties, and unknown columns, by points.
+ */
+function ordenarPor(linhas, coluna, { crescente = false } = {}) {
+    const sinal = crescente ? -1 : 1;
+    const valor = (l) => (typeof l[coluna] === 'number' ? sinal * l[coluna] : -Infinity);
     return [...linhas].sort((a, b) => (valor(a) !== valor(b) ? valor(b) - valor(a) : ordenarPorPontos(a, b)));
+}
+
+const temValor = (v) => v !== null && v !== undefined;
+
+/**
+ * Columns from v3 on: matches stored before don't have them, so each one is computed only over
+ * the matches that do, and is null when none do (shown as "—", not 0).
+ */
+function colunasV3(partidas) {
+    const com = (campo) => partidas.filter((p) => temValor(p[campo]));
+    const somaDe = (lista, campo) => lista.reduce((t, p) => t + p[campo], 0);
+    const razao = (campo, divisor) => {
+        const lista = com(campo).filter((p) => temValor(p[divisor]));
+        const total = somaDe(lista, divisor);
+        return lista.length && total ? somaDe(lista, campo) / total : null;
+    };
+    const media = (campo, escala = 1) => {
+        const lista = com(campo);
+        return lista.length ? (somaDe(lista, campo) / lista.length) * escala : null;
+    };
+    const comDano = com('total_damage');
+    const comDuracao = com('flash_duration');
+    const cegosComDuracao = somaDe(comDuracao, 'flash_hit_foe');
+    return {
+        adr: comDano.length ? somaDe(comDano, 'total_damage') / somaDe(comDano, 'rounds') : null,
+        // Average blind time per enemy flashed (Leetify gives it per match)
+        duracaoCegueira: cegosComDuracao ? comDuracao.reduce((t, p) => t + p.flash_duration * p.flash_hit_foe, 0) / cegosComDuracao : null,
+        flashAssists: somaDe(com('flash_assist'), 'flash_assist'),
+        utilDesperdicada: media('utility_on_death'),
+        mvps: somaDe(com('mvps'), 'mvps'),
+        tradeKills: somaDe(com('trade_kills_succeed'), 'trade_kills_succeed'),
+        tradePct: razao('trade_kills_succeed', 'trade_kill_attempts'),
+        tradedDeaths: somaDe(com('traded_deaths_succeed'), 'traded_deaths_succeed'),
+        tradedPct: razao('traded_deaths_succeed', 'traded_death_attempts'),
+        precisaoGeral: razao('shots_hit_foe', 'shots_fired'),
+        spray: media('spray_accuracy'),
+        counterStrafing: razao('counter_strafing_good', 'counter_strafing_all'),
+        preaim: media('preaim'),
+        // Leetify gives seconds; shown in milliseconds
+        reacao: media('reaction_time', 1000),
+    };
 }
 
 function resumir(steam64Id, partidas, perfil, mensal) {
@@ -47,7 +92,20 @@ function resumir(steam64Id, partidas, perfil, mensal) {
         hePorNade: dividir(soma('he_foes_damage'), comHE.reduce((t, p) => t + (p.he_thrown ?? 0), 0)),
         // Not rounded: ratings are small (e.g. 0.0117) and the site shows them ×100
         leetify: comLeetify.length ? comLeetify.reduce((t, p) => t + p.leetify_rating, 0) / comLeetify.length : null,
+        flashKills: soma('flash_leading_to_kill'),
+        heAtiradas: soma('he_thrown'),
+        molotovs: soma('molotov_thrown'),
+        smokes: soma('smoke_thrown'),
+        granadasPorRonda: dividir(soma('flash_thrown') + soma('he_thrown') + soma('molotov_thrown') + soma('smoke_thrown'), soma('rounds')),
+        k2: soma('multi2k'),
+        k3: soma('multi3k'),
+        k4: soma('multi4k'),
+        k5: soma('multi5k'),
+        ...colunasV3(partidas),
         aim: perfil?.aim ?? null,
+        // Current Leetify ratings (not per period, like aim)
+        clutch: perfil?.clutch ?? null,
+        opening: perfil?.opening ?? null,
         elegivel: !mensal || partidas.length >= MIN_PARTIDAS_MVP,
     };
 }

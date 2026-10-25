@@ -108,3 +108,14 @@ test('the table shows award emojis this month but not all time', async () => {
         fechar();
     }
 });
+
+test('the table page honours each table sort and ignores unknown columns', async () => {
+    const { url, fechar } = await site();
+    try {
+        const html = await (await fetch(`${url}/s/g1?ordem=nope&u=heDano&k=k5&m=reacao`)).text();
+        assert.match(html, /ordem=pontos&amp;u=heDano&amp;k=k5&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
+        assert.match(html, /class="ativo">Points/);
+    } finally {
+        fechar();
+    }
+});

@@ -138,3 +138,62 @@ test('the Leetify rating average keeps its precision (shown ×100 on the site)',
     const [l] = tabela(db, ['s1'], 'mes', AGORA);
     assert.ok(Math.abs(l.leetify - 0.017) < 1e-9, String(l.leetify));
 });
+
+test('v0.7 columns: ADR, utility, multi-kills, trades and aim', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPerfil('s1', { rating: { aim: 80, clutch: 0.12, opening: -0.01 } });
+    partida(db, 's1', {
+        v: 13, d: 7, multi: [5, 3, 2, 1, 1], total_damage: 1800, flashbang_thrown: 10, flashbang_hit_foe: 6, flashbang_hit_foe_avg_duration: 3,
+        flashbang_leading_to_kill: 2, flash_assist: 1, he_thrown: 4, molotov_thrown: 3, smoke_thrown: 3, utility_on_death_avg: 100,
+        mvps: 4, trade_kill_attempts: 4, trade_kills_succeed: 2, traded_death_attempts: 5, traded_deaths_succeed: 1,
+        shots_fired: 200, shots_hit_foe: 40, spray_accuracy: 0.3, counter_strafing_shots_good: 30, counter_strafing_shots_all: 40, preaim: 6, reaction_time: 0.4,
+    });
+    partida(db, 's1', {
+        v: 7, d: 13, multi: [4, 1, 0, 0, 0], total_damage: 1200, flashbang_thrown: 10, flashbang_hit_foe: 2, flashbang_hit_foe_avg_duration: 1,
+        flashbang_leading_to_kill: 0, flash_assist: 1, he_thrown: 2, molotov_thrown: 1, smoke_thrown: 4, utility_on_death_avg: 200,
+        mvps: 1, trade_kill_attempts: 6, trade_kills_succeed: 3, traded_death_attempts: 5, traded_deaths_succeed: 4,
+        shots_fired: 100, shots_hit_foe: 20, spray_accuracy: 0.5, counter_strafing_shots_good: 10, counter_strafing_shots_all: 20, preaim: 8, reaction_time: 0.6,
+    });
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.strictEqual(l.adr, 3000 / 40);
+    assert.strictEqual(l.duracaoCegueira, (6 * 3 + 2 * 1) / 8);
+    assert.strictEqual(l.flashKills, 2);
+    assert.strictEqual(l.flashAssists, 2);
+    assert.strictEqual(l.heAtiradas, 6);
+    assert.strictEqual(l.molotovs, 4);
+    assert.strictEqual(l.smokes, 7);
+    assert.strictEqual(l.granadasPorRonda, (20 + 6 + 4 + 7) / 40);
+    assert.strictEqual(l.utilDesperdicada, 150);
+    assert.deepStrictEqual([l.k2, l.k3, l.k4, l.k5], [4, 2, 1, 1]);
+    assert.strictEqual(l.mvps, 5);
+    assert.strictEqual(l.tradeKills, 5);
+    assert.strictEqual(l.tradePct, 5 / 10);
+    assert.strictEqual(l.tradedDeaths, 5);
+    assert.strictEqual(l.tradedPct, 5 / 10);
+    assert.strictEqual(l.precisaoGeral, 60 / 300);
+    assert.strictEqual(l.spray, 0.4);
+    assert.strictEqual(l.counterStrafing, 40 / 60);
+    assert.strictEqual(l.preaim, 7);
+    assert.strictEqual(l.reacao, 500);
+    assert.strictEqual(l.clutch, 0.12);
+    assert.strictEqual(l.opening, -0.01);
+});
+
+test('v0.7 columns without data (matches stored before) are null, not 0', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1', {});
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    for (const c of ['adr', 'duracaoCegueira', 'utilDesperdicada', 'spray', 'preaim', 'reacao', 'precisaoGeral', 'counterStrafing', 'clutch']) {
+        assert.strictEqual(l[c], null, c);
+    }
+});
+
+test('ordenarPor can sort lowest first (reaction time, preaim), empty values still last', () => {
+    const linhas = [
+        { steam64Id: 'a', reacao: 500, pontos: 1, vitorias: 0, hltv: 1, partidas: 1 },
+        { steam64Id: 'b', reacao: null, pontos: 9, vitorias: 0, hltv: 1, partidas: 1 },
+        { steam64Id: 'c', reacao: 300, pontos: 5, vitorias: 0, hltv: 1, partidas: 1 },
+    ];
+    assert.deepStrictEqual(ordenarPor(linhas, 'reacao', { crescente: true }).map((l) => l.steam64Id), ['c', 'a', 'b']);
+    assert.deepStrictEqual(ordenarPor(linhas, 'reacao').map((l) => l.steam64Id), ['a', 'c', 'b']);
+});
