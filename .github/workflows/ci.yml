@@ -42,13 +42,16 @@ jobs:
           exit 1
 
       - name: The setup page renders
-        run: curl -fsS http://localhost:3000/setup | grep -q "<h1>Bot setup</h1>"
+        run: |
+          curl -fsS http://localhost:3000/setup | grep -q "<h1>Bot setup</h1>"
 
       - name: The setup code is in the logs
-        run: docker logs stats-bot 2>&1 | grep -E "Setup code: [A-Z0-9]{4}-[A-Z0-9]{4}"
+        run: |
+          docker logs stats-bot 2>&1 | grep -E "Setup code: [A-Z0-9]{4}-[A-Z0-9]{4}"
 
       - name: The database works inside the image
-        run: docker exec stats-bot node -e "require('./src/db').abrirBD('/app/data/ci.db').contarPartidas()"
+        run: |
+          docker exec stats-bot node -e "require('./src/db').abrirBD('/app/data/ci.db').contarPartidas()"
 
       - name: Container logs
         if: always()
