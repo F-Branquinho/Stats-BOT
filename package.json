@@ -1,0 +1,21 @@
+{
+  "name": "stats-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Discord bot and website with CS2 stats leaderboards for your server, powered by Leetify",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.3",
+    "node-cron": "^3.0.3"
+  }
+}
