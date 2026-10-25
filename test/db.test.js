@@ -147,3 +147,32 @@ test('ligarJogador with forcar moves a Steam account to another Discord user', (
     assert.strictEqual(db.jogadorPorSteam('s1').discord_id, 'd2');
     assert.strictEqual(db.jogador('d1'), undefined);
 });
+
+test('HE damage is stored as totals (average per HE × HEs thrown)', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPartida(premier, { ...stats(premier, 's1'), he_thrown: 8, he_foes_damage_avg: 4.75, he_friends_damage_avg: 0.625 });
+    const [p] = db.partidasDe(['s1'], null, null);
+    assert.strictEqual(p.he_foes_damage, 38);
+    assert.strictEqual(p.he_friends_damage, 5);
+});
+
+test('an existing database gets the HE columns, and old matches are filled in when seen again', () => {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const ficheiro = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stats-db-')), 'stats.db');
+    const antiga = abrirBD(ficheiro);
+    antiga.guardarPartida(premier, stats(premier, 's1'));
+    // Turn it into a v1 database, from before the HE columns
+    antiga.bd.exec('ALTER TABLE player_matches DROP COLUMN he_foes_damage; ALTER TABLE player_matches DROP COLUMN he_friends_damage;');
+    antiga.bd.pragma('user_version = 1');
+    antiga.fechar();
+
+    const db = abrirBD(ficheiro);
+    assert.strictEqual(db.partidasDe(['s1'], null, null)[0].he_foes_damage, null);
+    const novo = db.guardarPartida(premier, { ...stats(premier, 's1'), he_thrown: 10, he_foes_damage_avg: 2.4, he_friends_damage_avg: 0 });
+    assert.strictEqual(novo, false);
+    assert.strictEqual(db.partidasDe(['s1'], null, null)[0].he_foes_damage, 24);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 2);
+    db.fechar();
+});

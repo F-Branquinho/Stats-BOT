@@ -19,6 +19,7 @@ function ordenarPor(linhas, coluna) {
 function resumir(steam64Id, partidas, perfil, mensal) {
     const soma = (campo) => partidas.reduce((t, p) => t + (p[campo] ?? 0), 0);
     const comLeetify = partidas.filter((p) => p.leetify_rating !== null);
+    const comHE = partidas.filter((p) => p.he_foes_damage !== null && p.he_foes_damage !== undefined);
     const kills = soma('kills');
     const deaths = soma('deaths');
     return {
@@ -40,6 +41,10 @@ function resumir(steam64Id, partidas, perfil, mensal) {
         // Per flash thrown, so it can go over 100% (one flash can blind two people)
         flashPct: dividir(soma('flash_hit_foe'), soma('flash_thrown')),
         tfPct: dividir(soma('flash_hit_friend'), soma('flash_thrown')),
+        heDano: soma('he_foes_damage'),
+        heTeam: soma('he_friends_damage'),
+        // Only matches with HE damage data (older ones may not have it)
+        hePorNade: dividir(soma('he_foes_damage'), comHE.reduce((t, p) => t + (p.he_thrown ?? 0), 0)),
         leetify: comLeetify.length ? arredondar(comLeetify.reduce((t, p) => t + p.leetify_rating, 0) / comLeetify.length) : null,
         aim: perfil?.aim ?? null,
         elegivel: !mensal || partidas.length >= MIN_PARTIDAS_MVP,

@@ -2,6 +2,11 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.6.0
+
+- HE grenade damage: new **HE dmg** (total to enemies), **HE/nade** (average per HE) and **HE team** (to teammates) columns, also on the player profile and in `/stats`. Leetify doesn't give molotov damage.
+- The database is upgraded automatically; matches stored before get their HE damage the next time Leetify sends them (its last 100).
+
 ## v0.5.0
 
 - New **Flash %** and **TF %** columns: enemies and teammates blinded per flash thrown (can go over 100%, since one flash can blind several people). Also on the player profile and in `/stats`. The 💡 and 🤦 awards still use totals.

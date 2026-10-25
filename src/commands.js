@@ -75,6 +75,7 @@ function linhaStats(l, codigo) {
         `🎯 ${percentagem(l.precisao)}`,
         `💡 ${l.cegos} (${percentagem(l.flashPct)})`,
         `🤦 ${l.teamflashes} (${percentagem(l.tfPct)})`,
+        `💥 HE ${Math.round(l.heDano ?? 0)}`,
         `${l.partidas} ${t.partidasN}`,
     ].join(' · ');
 }

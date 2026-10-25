@@ -91,3 +91,13 @@ test('the table has Flash % and TF % columns', () => {
     assert.match(html, /<td>75%<\/td>/);
     assert.match(html, /<td>150%<\/td>/);
 });
+
+test('the table has HE damage columns', () => {
+    const html = paginaTabela({ sessao, guild, linhas: [linha({ heDano: 150.4, hePorNade: 10.04, heTeam: 9.6 })], periodo: 'mes', ordem: 'heDano' });
+    assert.match(html, /ordem=heDano" class="ativo">HE dmg/);
+    assert.match(html, /ordem=hePorNade">HE\/nade/);
+    assert.match(html, /ordem=heTeam">HE team/);
+    assert.match(html, /<td>150<\/td>/);
+    assert.match(html, /<td>10\.0<\/td>/);
+    assert.match(html, /<td>10<\/td>/);
+});

@@ -119,3 +119,14 @@ test('flash percentages are 0 without flashes thrown', () => {
     assert.strictEqual(l.flashPct, 0);
     assert.strictEqual(l.tfPct, 0);
 });
+
+test('HE damage totals, teammates and per HE (matches without HE data left out of the average)', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1', { he_thrown: 10, he_foes_damage_avg: 5, he_friends_damage_avg: 1 });  // 50 / 10
+    partida(db, 's1', { he_thrown: 5, he_foes_damage_avg: 20, he_friends_damage_avg: 0 });  // 100 / 0
+    partida(db, 's1', { he_thrown: 7 });                                                    // no damage data
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.strictEqual(l.heDano, 150);
+    assert.strictEqual(l.heTeam, 10);
+    assert.strictEqual(l.hePorNade, 10);
+});

@@ -187,3 +187,7 @@ test('linhaStats shows Flash % and TF %', () => {
     assert.match(texto, /💡 41 \(68%\)/);
     assert.match(texto, /🤦 9 \(15%\)/);
 });
+
+test('linhaStats shows HE damage', () => {
+    assert.match(linhaStats({ ...linha, flashPct: 0, tfPct: 0, heDano: 312.6 }, 'en'), /💥 HE 313/);
+});

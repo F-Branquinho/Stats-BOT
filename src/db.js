@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS player_matches (
     hltv_rating               REAL,
     points                    INTEGER,
     counted                   INTEGER NOT NULL,
+    he_foes_damage            REAL,
+    he_friends_damage         REAL,
     PRIMARY KEY (match_id, steam64_id)
 );
 CREATE INDEX IF NOT EXISTS player_matches_steam ON player_matches (steam64_id);
@@ -69,13 +71,30 @@ CREATE TABLE IF NOT EXISTS api_usage (
 );
 `;
 
+const VERSAO = 2;
+
+/** Brings a database created by an older version up to date. */
+function migrar(db) {
+    const colunas = new Set(db.prepare('PRAGMA table_info(player_matches)').all().map((c) => c.name));
+    // v2: HE grenade damage (totals per match)
+    for (const coluna of ['he_foes_damage', 'he_friends_damage']) {
+        if (!colunas.has(coluna)) db.exec(`ALTER TABLE player_matches ADD COLUMN ${coluna} REAL`);
+    }
+    db.pragma(`user_version = ${VERSAO}`);
+}
+
+/** Leetify gives the average HE damage per grenade; this is the match total. */
+function danoHE(media, granadas) {
+    return typeof media === 'number' ? Math.round(media * (granadas ?? 0) * 100) / 100 : null;
+}
+
 /** Opens (and creates) the database. Use ':memory:' in tests. */
 function abrirBD(ficheiro) {
     const db = new Database(ficheiro);
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     db.exec(ESQUEMA);
-    db.pragma('user_version = 1');
+    migrar(db);
 
     const q = {
         jogador: db.prepare('SELECT * FROM players WHERE discord_id = ?'),
@@ -101,7 +120,11 @@ function abrirBD(ficheiro) {
             @multi1k, @multi2k, @multi3k, @multi4k, @multi5k, @dpr, @leetify_rating, @accuracy_head,
             @shots_fired_enemy_spotted, @shots_hit_enemy_spotted, @preaim, @reaction_time,
             @flash_thrown, @flash_hit_foe, @flash_hit_friend, @flash_leading_to_kill,
-            @he_thrown, @smoke_thrown, @molotov_thrown, @result, @hltv_rating, @points, @counted)`),
+            @he_thrown, @smoke_thrown, @molotov_thrown, @result, @hltv_rating, @points, @counted,
+            @he_foes_damage, @he_friends_damage)`),
+        // Matches stored before v2 get their HE damage the next time Leetify sends them
+        completarHE: db.prepare(`UPDATE player_matches SET he_foes_damage = @he_foes_damage, he_friends_damage = @he_friends_damage
+            WHERE match_id = @match_id AND steam64_id = @steam64_id AND he_foes_damage IS NULL`),
         contarPartidas: db.prepare('SELECT COUNT(*) AS n FROM matches'),
         perfil: db.prepare('SELECT * FROM player_profile WHERE steam64_id = ?'),
         guardarPerfil: db.prepare(`INSERT INTO player_profile VALUES (@steam64Id, @aim, @utility, @positioning, @premier, @faceitElo, @agora)
@@ -142,7 +165,14 @@ function abrirBD(ficheiro) {
             has_banned_player: match.has_banned_player ? 1 : 0,
         });
         const banida = q.banida.get(match.id) === 1;
+        const he = {
+            match_id: match.id,
+            steam64_id: s.steam64_id,
+            he_foes_damage: danoHE(s.he_foes_damage_avg, s.he_thrown),
+            he_friends_damage: danoHE(s.he_friends_damage_avg, s.he_thrown),
+        };
         const info = q.jogadorPartida.run({
+            ...he,
             match_id: match.id,
             steam64_id: s.steam64_id,
             kills: s.total_kills ?? 0,
@@ -173,7 +203,9 @@ function abrirBD(ficheiro) {
             points: rating === null ? 0 : pontos(res, rating),
             counted: partidaConta({ ...match, has_banned_player: banida }, s) ? 1 : 0,
         });
-        return info.changes > 0;
+        if (info.changes > 0) return true;
+        if (he.he_foes_damage !== null) q.completarHE.run(he);
+        return false;
     });
 
     /** Counted matches of these players, newest first, with finished_at in [desde, ate). */

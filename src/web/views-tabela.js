@@ -30,6 +30,9 @@ const COLUNAS = [
     ['teamflashes', 'Team flashes', String],
     ['flashPct', 'Flash %', percentagem],
     ['tfPct', 'TF %', percentagem],
+    ['heDano', 'HE dmg', (v) => Math.round(v ?? 0)],
+    ['hePorNade', 'HE/nade', (v) => (v ?? 0).toFixed(1)],
+    ['heTeam', 'HE team', (v) => Math.round(v ?? 0)],
     ['leetify', 'Leetify', leetify],
 ];
 const COLUNAS_VALIDAS = new Set(COLUNAS.map(([c]) => c));
@@ -111,6 +114,7 @@ function paginaPerfil({ sessao, guild, jogador, total, meses, partidas }) {
         ? `<div class="cartoes">
   <div class="cartao"><h3>${total.pontos} points</h3><p>${total.partidas} matches · ${total.vitorias}–${total.empates}–${total.derrotas}</p></div>
   <div class="cartao"><h3>HLTV ${decimal(total.hltv)}</h3><p>K/D ${decimal(total.kd)} · HS ${percentagem(total.hs)} · ${total.kills} kills</p></div>
+  <div class="cartao"><h3>💥 ${Math.round(total.heDano)} HE damage</h3><p>${(total.hePorNade ?? 0).toFixed(1)} per HE · ${Math.round(total.heTeam)} to teammates</p></div>
   <div class="cartao"><h3>💡 ${total.cegos} · 🤦 ${total.teamflashes}</h3><p>Enemies flashed · team flashes (${total.flashes} flashes thrown: ${percentagem(total.flashPct)} · ${percentagem(total.tfPct)})</p></div>
 </div>`
         : '<div class="cartao"><p>No counted matches yet.</p></div>';
