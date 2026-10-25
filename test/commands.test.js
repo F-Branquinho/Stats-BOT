@@ -10,7 +10,7 @@ const linha = {
 };
 
 test('command names', () => {
-    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'stats', 'top', 'mvp', 'stats-help']);
+    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'table', 'stats', 'top', 'mvp', 'stats-help']);
 });
 
 test('/add takes a required steam64 and an optional user', () => {
@@ -106,7 +106,8 @@ test('ligarPorComando: a Leetify outage still links, without matches yet', async
 test('/top choices for category and period', () => {
     const top = definicoes.find((c) => c.name === 'top');
     const escolhas = (nome) => top.options.find((o) => o.name === nome).choices.map((c) => c.value);
-    assert.deepStrictEqual(escolhas('category'), ['points', 'kills', 'aim', 'hs', 'flashes', 'teamflash', 'matches']);
+    assert.deepStrictEqual(escolhas('category'), ['kills', 'adr', 'aim', 'hs', 'flashes', 'flashpct', 'teamflash', 'hedmg', 'ace', 'k3', 'tradepct', 'matches']);
+    assert.strictEqual(top.options.find((o) => o.name === 'category').required, true);
     assert.deepStrictEqual(escolhas('period'), ['month', 'last_month', 'all']);
     assert.deepStrictEqual(Object.keys(CATEGORIAS), escolhas('category'));
 });
@@ -133,7 +134,7 @@ test('linhasTop formats values per category, at most 10 lines', () => {
     const l = texto.split('\n');
     assert.strictEqual(l.length, 10);
     assert.strictEqual(l[0], '1. <@s0> — 50%');
-    assert.strictEqual(linhasTop([linha], 'points', (s) => s), '1. s1 — 55');
+    assert.strictEqual(linhasTop([linha], 'kills', (s) => s), '1. s1 — 210');
 });
 
 test('every /add reply exists in Portuguese and English', () => {
@@ -190,4 +191,63 @@ test('linhaStats shows Flash % and TF %', () => {
 
 test('linhaStats shows HE damage', () => {
     assert.match(linhaStats({ ...linha, flashPct: 0, tfPct: 0, heDano: 312.6 }, 'en'), /💥 HE 313/);
+});
+
+test('/table answers with a link button to this server\'s table', () => {
+    const { respostaTable } = require('../src/commands');
+    const { idioma } = require('../src/i18n');
+    const r = respostaTable({ publicUrl: 'https://stats.example.com', guildId: '123', t: idioma('pt') });
+    const json = JSON.parse(JSON.stringify(r));
+    assert.strictEqual(json.components[0].components[0].url, 'https://stats.example.com/s/123');
+    assert.strictEqual(json.components[0].components[0].style, 5);
+    assert.ok(json.flags);
+    const semSite = respostaTable({ publicUrl: null, guildId: '123', t: idioma('pt') });
+    assert.match(semSite.content, /site/);
+    assert.strictEqual(semSite.components, undefined);
+});
+
+test('linhasTop formats the new categories, with "—" for missing values', () => {
+    const base = { ...linha, adr: 88.4, heDano: 1478.2, k5: 2, k3: 28, tradePct: 0.48, flashPct: 0.63 };
+    assert.strictEqual(linhasTop([base], 'adr', (s) => s), '1. s1 — 88');
+    assert.strictEqual(linhasTop([base], 'hedmg', (s) => s), '1. s1 — 1478');
+    assert.strictEqual(linhasTop([base], 'ace', (s) => s), '1. s1 — 2');
+    assert.strictEqual(linhasTop([base], 'k3', (s) => s), '1. s1 — 28');
+    assert.strictEqual(linhasTop([base], 'tradepct', (s) => s), '1. s1 — 48%');
+    assert.strictEqual(linhasTop([base], 'flashpct', (s) => s), '1. s1 — 63%');
+    assert.strictEqual(linhasTop([{ ...base, adr: null }], 'adr', (s) => s), '1. s1 — —');
+});
+
+function corrida(n, extra = {}) {
+    return {
+        ...linha, steam64Id: `s${n}`, pontos: 100 - n * 7, vitorias: 10 - n, empates: 1, derrotas: n, hltv: 1.2 - n / 100,
+        partidas: 10, elegivel: true, kills: 300 - n, precisao: 0.3, hs: 0.4, cegos: 50 - n, teamflashes: 5, ...extra,
+    };
+}
+
+test('mensagemMvp: race with gap to the leader, players still short of 5 matches and award leaders', () => {
+    const { mensagemMvp } = require('../src/commands');
+    const linhas = [corrida(1), corrida(2), corrida(3, { elegivel: false, partidas: 3, pontos: 200 })];
+    const texto = mensagemMvp({ linhas, idioma: 'pt', mencao: (s) => `<@${s}>`, periodo: 'outubro de 2026' });
+    const l = texto.split('\n');
+    assert.match(texto, /outubro de 2026/);
+    assert.ok(l.some((x) => x.startsWith('🏆 1. <@s1> — 93 pts · 9V 1E 1D · HLTV 1.19')), texto);
+    assert.ok(l.some((x) => x.startsWith('2. <@s2> — 86 pts (−7)')), texto);
+    assert.match(texto, /<@s3> \(3\/5, faltam 2\)/);
+    assert.match(texto, /🔫 <@s1>/);
+    assert.match(texto, /🎮 <@s1>/);
+    assert.ok(texto.length <= 2000);
+});
+
+test('mensagemMvp: nobody eligible yet', () => {
+    const { mensagemMvp } = require('../src/commands');
+    const texto = mensagemMvp({ linhas: [corrida(1, { elegivel: false, partidas: 2 })], idioma: 'en', mencao: (s) => s, periodo: 'October 2026' });
+    assert.match(texto, /Nobody has 5 matches/);
+    assert.match(texto, /s1 \(2\/5, 3 to go\)/);
+});
+
+test('mensagemMvp: a long race still fits in one Discord message', () => {
+    const { mensagemMvp } = require('../src/commands');
+    const linhas = Array.from({ length: 30 }, (_, i) => corrida(i + 1, i >= 12 ? { elegivel: false, partidas: 4 } : {}));
+    const texto = mensagemMvp({ linhas, idioma: 'pt', mencao: (s) => `<@1234567890123456${String(s).slice(1).padStart(2, '0')}>`, periodo: 'outubro de 2026' });
+    assert.ok(texto.length <= 2000, String(texto.length));
 });

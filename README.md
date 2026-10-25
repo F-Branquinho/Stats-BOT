@@ -43,8 +43,9 @@ Only players with 5+ matches compete, except for 🎮. The report is sent once p
 | `/link` | Link to connect your Steam account (only you see it) |
 | `/add steam64:<id> [user]` | Adds a Steam account to the table by its Steam64 ID (or `steamcommunity.com/profiles/…` link) and fetches its matches right away. With `user:`, links someone else's account (requires **Manage Server**); an admin can also move a Steam account that was linked to the wrong person. The reply shows the Leetify name and says whether the profile is private or has no Leetify account. Unlike `/link`, Steam doesn't confirm the account is yours |
 | `/stats [user]` | This month's summary: points, W/D/L, HLTV rating, kills, K/D, HS%, aim, enemies and teammates flashed (with Flash % and TF %), HE damage |
-| `/top [category] [period]` | Top 10 by points, kills, aim, HS%, enemies flashed, team flashes or matches; this month, last month or all time |
-| `/mvp` | This month's MVP race |
+| `/table` | A button that opens this server's table on the website (only you see it) |
+| `/top category [period]` | Top 10 by kills, ADR, aim, HS%, enemies flashed, Flash %, team flashes, HE damage, ACEs, 3Ks, trade % or matches; this month, last month or all time |
+| `/mvp` | This month's MVP race: top 10 by points with the gap to 1st, who is still short of 5 matches, and who leads each award |
 | `/stats-help` | What the bot does and the commands (only you see it) |
 
 Replies use the server's language. Commands never ping anyone.

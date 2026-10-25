@@ -1,9 +1,11 @@
-const { MessageFlags, PermissionFlagsBits, RESTJSONErrorCodes, SlashCommandBuilder } = require('discord.js');
+const {
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, PermissionFlagsBits, RESTJSONErrorCodes, SlashCommandBuilder,
+} = require('discord.js');
 const settings = require('./settings');
 const { idioma, preencher, nomeDoMes } = require('./i18n');
 const { intervalo } = require('./periodos');
 const { tabela, ordenarPor, MIN_PARTIDAS_MVP } = require('./leaderboard');
-const { escolherVencedores } = require('./report');
+const { EMOJIS, escolherVencedores } = require('./report');
 const { membrosLigados } = require('./membros');
 
 // View channels, send messages, embed links
@@ -12,15 +14,24 @@ const SEM_PINGS = { parse: [] };
 
 const percentagem = (v) => `${Math.round(v * 100)}%`;
 
-// /top category → table column and how its values are shown
+// Values can be missing (matches stored before a column existed): shown as "—"
+const ou = (formato) => (v) => (typeof v === 'number' ? formato(v) : '—');
+const inteiro = ou((v) => String(Math.round(v)));
+
+// /top category → table column and how its values are shown (points are /mvp)
 const CATEGORIAS = {
-    points: { coluna: 'pontos' },
-    kills: { coluna: 'kills' },
-    aim: { coluna: 'precisao', formato: percentagem },
-    hs: { coluna: 'hs', formato: percentagem },
-    flashes: { coluna: 'cegos' },
-    teamflash: { coluna: 'teamflashes' },
-    matches: { coluna: 'partidas' },
+    kills: { coluna: 'kills', nome: 'Kills' },
+    adr: { coluna: 'adr', nome: 'ADR', formato: inteiro },
+    aim: { coluna: 'precisao', nome: 'Aim (accuracy)', formato: ou(percentagem) },
+    hs: { coluna: 'hs', nome: 'Headshot %', formato: ou(percentagem) },
+    flashes: { coluna: 'cegos', nome: 'Enemies flashed' },
+    flashpct: { coluna: 'flashPct', nome: 'Flash %', formato: ou(percentagem) },
+    teamflash: { coluna: 'teamflashes', nome: 'Team flashes' },
+    hedmg: { coluna: 'heDano', nome: 'HE damage', formato: inteiro },
+    ace: { coluna: 'k5', nome: 'ACEs' },
+    k3: { coluna: 'k3', nome: '3Ks' },
+    tradepct: { coluna: 'tradePct', nome: 'Trade %', formato: ou(percentagem) },
+    matches: { coluna: 'partidas', nome: 'Matches' },
 };
 const PERIODOS = { month: 'mes', last_month: 'mes_passado', all: 'sempre' };
 
@@ -34,21 +45,17 @@ const definicoes = [
         .addStringOption((o) => o.setName('steam64').setDescription('Steam64 ID (7656119…) or steamcommunity.com/profiles/… link').setRequired(true).setMaxLength(100))
         .addUserOption((o) => o.setName('user').setDescription('Whose account it is (defaults to you; others need Manage Server)')),
     new SlashCommandBuilder()
+        .setName('table')
+        .setDescription("Open this server's stats table"),
+    new SlashCommandBuilder()
         .setName('stats')
         .setDescription("This month's stats of a player")
         .addUserOption((o) => o.setName('user').setDescription('Whose stats (defaults to you)')),
     new SlashCommandBuilder()
         .setName('top')
-        .setDescription('Top 10 of this server by category')
-        .addStringOption((o) => o.setName('category').setDescription('What to rank by (default: points)').addChoices(
-            { name: 'Points', value: 'points' },
-            { name: 'Kills', value: 'kills' },
-            { name: 'Aim (accuracy)', value: 'aim' },
-            { name: 'Headshot %', value: 'hs' },
-            { name: 'Enemies flashed', value: 'flashes' },
-            { name: 'Team flashes', value: 'teamflash' },
-            { name: 'Matches', value: 'matches' },
-        ))
+        .setDescription('Top 10 of this server by category (points are in /mvp)')
+        .addStringOption((o) => o.setName('category').setDescription('What to rank by').setRequired(true)
+            .addChoices(...Object.entries(CATEGORIAS).map(([value, { nome }]) => ({ name: nome, value }))))
         .addStringOption((o) => o.setName('period').setDescription('Default: this month').addChoices(
             { name: 'This month', value: 'month' },
             { name: 'Last month', value: 'last_month' },
@@ -84,6 +91,57 @@ function linhaStats(l, codigo) {
 function linhasTop(linhas, categoria, mencao) {
     const { coluna, formato = String } = CATEGORIAS[categoria];
     return linhas.slice(0, 10).map((l, i) => `${i + 1}. ${mencao(l.steam64Id)} — ${formato(l[coluna])}`).join('\n');
+}
+
+/** /table: a link button to this server's table, only for whoever asked. */
+function respostaTable({ publicUrl, guildId, t, servidor = '' }) {
+    if (!publicUrl) return { content: t.cmd.semSite, flags: MessageFlags.Ephemeral };
+    const botao = new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t.cmd.abrirTabela).setURL(`${publicUrl}/s/${guildId}`);
+    return {
+        content: preencher(t.cmd.table, { servidor }),
+        components: [new ActionRowBuilder().addComponents(botao)],
+        flags: MessageFlags.Ephemeral,
+    };
+}
+
+const FORMATOS_PREMIO = { aim: percentagem, hs: percentagem };
+const MAX_A_CAMINHO = 10;
+
+/**
+ * /mvp: the top 10 by points with the gap to 1st, who is still short of 5 matches, and who leads each award.
+ * `linhas` are this month's table rows.
+ */
+function mensagemMvp({ linhas, idioma: codigo, mencao, periodo }) {
+    const t = idioma(codigo);
+    const vencedores = escolherVencedores(linhas);
+    const partes = [preencher(t.cmd.mvp, { periodo })];
+
+    if (vencedores.top.length) {
+        const lider = vencedores.top[0].pontos;
+        partes.push(...vencedores.top.map((l, i) => {
+            const registo = `${l.vitorias}${t.resultado.V} ${l.empates}${t.resultado.E} ${l.derrotas}${t.resultado.D}`;
+            const diferenca = i === 0 ? '' : ` (−${lider - l.pontos})`;
+            const linha = `${i + 1}. ${mencao(l.steam64Id)} — ${l.pontos} pts${diferenca} · ${registo} · HLTV ${l.hltv.toFixed(2)}`;
+            return i === 0 ? `🏆 ${linha}` : linha;
+        }));
+    } else {
+        partes.push(preencher(t.cmd.mvpVazio, { minimo: MIN_PARTIDAS_MVP, periodo }));
+    }
+
+    const aCaminho = linhas.filter((l) => !l.elegivel).sort((a, b) => b.partidas - a.partidas || b.pontos - a.pontos);
+    if (aCaminho.length) {
+        const nomes = aCaminho.slice(0, MAX_A_CAMINHO).map((l) => preencher(t.cmd.mvpFaltam, {
+            jogador: mencao(l.steam64Id), n: l.partidas, minimo: MIN_PARTIDAS_MVP, k: MIN_PARTIDAS_MVP - l.partidas,
+        }));
+        if (aCaminho.length > MAX_A_CAMINHO) nomes.push(`+${aCaminho.length - MAX_A_CAMINHO}`);
+        partes.push('', preencher(t.cmd.mvpCaminho, { minimo: MIN_PARTIDAS_MVP }), nomes.join(', '));
+    }
+
+    const premios = Object.entries(vencedores.premios).filter(([, v]) => v);
+    if (premios.length) {
+        partes.push('', t.cmd.mvpPremios, premios.map(([p, v]) => `${EMOJIS[p]} ${mencao(v.steam64Id)} (${(FORMATOS_PREMIO[p] ?? String)(v.valor)})`).join(' · '));
+    }
+    return partes.join('\n');
 }
 
 function nomePeriodo(periodo, codigo) {
@@ -224,7 +282,7 @@ const COMANDOS = {
 
     async top(interaction, t, codigo) {
         await interaction.deferReply();
-        const categoria = interaction.options.getString('category') ?? 'points';
+        const categoria = interaction.options.getString('category') ?? 'kills';
         const periodo = PERIODOS[interaction.options.getString('period') ?? 'month'];
         const nome = nomePeriodo(periodo, codigo);
         const { linhas, mencao } = await linhasDoServidor(interaction.guild, periodo);
@@ -237,15 +295,14 @@ const COMANDOS = {
 
     async mvp(interaction, t, codigo) {
         await interaction.deferReply();
-        const nome = nomePeriodo('mes', codigo);
         const { linhas, mencao } = await linhasDoServidor(interaction.guild, 'mes');
-        const { top } = escolherVencedores(linhas);
-        const fora = linhas.length - linhas.filter((l) => l.elegivel).length;
-        const partes = top.length
-            ? [preencher(t.cmd.mvp, { periodo: nome }), linhasTop(top, 'points', mencao)]
-            : [preencher(t.cmd.mvpVazio, { minimo: MIN_PARTIDAS_MVP, periodo: nome })];
-        if (fora > 0) partes.push(preencher(t.cmd.mvpFora, { n: fora, minimo: MIN_PARTIDAS_MVP }));
-        await interaction.editReply({ content: partes.join('\n'), allowedMentions: SEM_PINGS });
+        const content = mensagemMvp({ linhas, idioma: codigo, mencao, periodo: nomePeriodo('mes', codigo) });
+        await interaction.editReply({ content, allowedMentions: SEM_PINGS });
+    },
+
+    async table(interaction, t) {
+        const { publicUrl } = settings.obter();
+        await interaction.reply(respostaTable({ publicUrl, guildId: interaction.guildId, t, servidor: interaction.guild?.name ?? '' }));
     },
 
     async 'stats-help'(interaction, t) {
@@ -271,5 +328,5 @@ async function tratarInteracao(interaction) {
 }
 
 module.exports = {
-    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, respostaAdd, urlConvite, registarComandos, definirBD, tratarInteracao,
+    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, respostaAdd, respostaTable, mensagemMvp, urlConvite, registarComandos, definirBD, tratarInteracao,
 };

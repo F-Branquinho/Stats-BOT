@@ -73,4 +73,4 @@ function mensagemRelatorio({ vencedores, mes, idioma: codigo, mencao }) {
     return [titulo, '', t.top, ...top, '', t.premios, ...premios].join('\n');
 }
 
-module.exports = { escolherVencedores, mensagemRelatorio, premiosPorJogador };
+module.exports = { EMOJIS, escolherVencedores, mensagemRelatorio, premiosPorJogador };

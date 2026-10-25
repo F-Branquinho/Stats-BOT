@@ -2,6 +2,13 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.8.0
+
+- `/table`: a button that opens this server's table on the website.
+- `/top` and `/mvp` no longer show the same thing:
+  - `/top` now requires a category and no longer has points (that's `/mvp`). New categories: ADR, Flash %, HE damage, ACEs, 3Ks and trade %.
+  - `/mvp` shows the top 10 with the gap to 1st, W/D/L and HLTV, who is still short of 5 matches (and how many to go), and who leads each award.
+
 ## v0.7.0
 
 - The server page has four tables, each sortable on its own:
