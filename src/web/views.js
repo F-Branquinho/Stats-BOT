@@ -187,6 +187,121 @@ ${alertas('erro', erros)}
 </div>`);
 }
 
+const FUNCIONALIDADES = [
+    ['📊', 'Server leaderboard', 'One table with everyone in the server: points, HLTV rating, kills, K/D, HS%, aim, flashes and team flashes.'],
+    ['🏆', 'MVP of the month', 'Every match gives points for the result and the HLTV rating. On the 1st, the bot posts the top 10 and the MVP.'],
+    ['🤦', 'Awards', 'Most kills, best aim, best HS%, flash king, team flash king and who played the most.'],
+    ['🔗', 'Link once', 'Each player signs in through Steam once. New matches come from Leetify every 30 minutes in the evening.'],
+    ['🎮', 'Premier, Competitive and FACEIT', 'Every match Leetify has for you counts. Wingman and short matches are left out.'],
+    ['⌨', 'Slash commands', '/stats, /top and /mvp right in Discord, in Portuguese or English.'],
+];
+
+function paginaInicial({ bot, sessao, comandos }) {
+    const nome = esc(bot.username);
+    return layout(`${bot.username}: CS2 stats for your Discord`, `
+<nav class="topo">
+  <a class="marca-bot" href="/"><img class="avatar" src="${avatarUtilizador(bot.id, bot.avatar)}" alt="">${nome}</a>
+  ${sessao ? '<a class="botao secundario" href="/dashboard">Your servers</a>' : '<a class="botao secundario" href="/login">Log in</a>'}
+</nav>
+
+<section class="hero">
+  <span class="selo">🎯 CS2 stats for Discord</span>
+  <h1>Who really carries your server?</h1>
+  <p class="lead">${nome} builds a CS2 leaderboard for your Discord server from Leetify and crowns the MVP of the month.</p>
+  <div class="acoes">
+    <a class="botao grande" href="/link">Link your Steam account</a>
+    <a class="botao secundario grande" href="/add">Add to Discord</a>
+  </div>
+</section>
+
+<section class="secao">
+  <h2>What it does</h2>
+  <div class="cartoes">
+    ${FUNCIONALIDADES.map(([emoji, titulo, texto]) => `<div class="cartao"><span class="emoji">${emoji}</span><h3>${titulo}</h3><p>${texto}</p></div>`).join('')}
+  </div>
+</section>
+
+<section class="secao">
+  <h2>Commands</h2>
+  <div class="cartoes duas">
+    ${comandos.map((c) => `<div class="cartao comando"><code>/${esc(c.nome)}</code><p>${esc(c.descricao)}</p></div>`).join('')}
+  </div>
+</section>`, {
+        larga: true,
+        descricao: `${bot.username} shows CS2 leaderboards for your Discord server, powered by Leetify, and posts the MVP of the month.`,
+    });
+}
+
+/** `servidores`: { id, nome, icon, temBot, gerivel, comoDono } */
+function paginaServidores({ sessao, servidores }) {
+    const itens = servidores.map((s) => {
+        const acoes = [];
+        if (s.temBot) acoes.push(`<a class="botao" href="/s/${esc(s.id)}">Table</a>`);
+        if (s.temBot && (s.gerivel || sessao.dono)) acoes.push(`<a class="botao secundario" href="/server/${esc(s.id)}">Settings</a>`);
+        if (!s.temBot) acoes.push(`<a class="botao secundario" href="/add?guild=${esc(s.id)}">Add bot</a>`);
+        const etiqueta = s.comoDono ? ' <span class="etiqueta suave">· as bot owner</span>' : '';
+        return `<div class="cartao servidor">
+  ${iconeServidor(s.id, s.nome, s.icon)}
+  <div class="nome">${esc(s.nome)}${etiqueta}</div>
+  <div class="acoes" style="margin:0">${acoes.join('')}</div>
+</div>`;
+    }).join('');
+
+    const vazio = `<div class="cartao"><p>The bot isn't in any of your servers yet.</p><p><a class="botao" href="/add">Add to Discord</a></p></div>`;
+    return layout('Your servers', `
+${cabecalho(sessao)}
+<h1>Your servers</h1>
+<p class="suave">Servers with the bot, plus the ones where you can add it. After adding the bot to a server, <a href="/login">refresh the list</a>.</p>
+${servidores.length ? itens : vazio}`);
+}
+
+function opcoesCanais(canais, selecionado) {
+    const opcoes = ['<option value="">Choose a channel…</option>'];
+    let categoria;
+    for (const c of canais) {
+        if (c.categoria !== categoria) {
+            if (categoria !== undefined) opcoes.push('</optgroup>');
+            opcoes.push(`<optgroup label="${esc(c.categoria ?? 'No category')}">`);
+            categoria = c.categoria;
+        }
+        opcoes.push(`<option value="${esc(c.id)}"${c.id === selecionado ? ' selected' : ''}>#${esc(c.nome)}</option>`);
+    }
+    if (categoria !== undefined) opcoes.push('</optgroup>');
+    return opcoes.join('');
+}
+
+function paginaServidor({ sessao, guild, canais, idiomas, cfg, erros, avisos, guardado, jogadores }) {
+    return layout(`${guild.name}: settings`, `
+${cabecalho(sessao)}
+<p><a href="/s/${esc(guild.id)}">← Table</a></p>
+<div class="servidor" style="margin-bottom:16px">
+  ${iconeServidor(guild.id, guild.name, guild.icon)}
+  <h1 class="nome" style="margin:0">${esc(guild.name)}</h1>
+</div>
+${guardado ? alertas('ok', ['Settings saved.']) : ''}
+${alertas('erro', erros)}
+${alertas('aviso', avisos)}
+<div class="cartao">
+  <p>🔗 ${jogadores} ${jogadores === 1 ? 'member has' : 'members have'} linked a Steam account. Others can use <code>/link</code>.</p>
+</div>
+<form class="cartao" method="post" action="/server/${esc(guild.id)}">
+  <input type="hidden" name="csrf" value="${esc(sessao.csrf)}">
+  <h2>Monthly report</h2>
+
+  <label for="reportChannelId">Report channel</label>
+  <select id="reportChannelId" name="reportChannelId">${opcoesCanais(canais, cfg.reportChannelId)}</select>
+  <div class="ajuda">On the 1st at 12:00 (Lisbon), the bot posts last month's top 10, the MVP and the awards here, mentioning the players.</div>
+
+  <label for="language">Language</label>
+  <select id="language" name="language" required>${Object.entries(idiomas).map(([codigo, i]) => `<option value="${esc(codigo)}"${codigo === cfg.language ? ' selected' : ''}>${esc(i.nome)}</option>`).join('')}</select>
+  <div class="ajuda">Language of the monthly report and of the command replies in this server.</div>
+
+  <label class="caixa"><input type="checkbox" name="reportEnabled"${cfg.reportEnabled ? ' checked' : ''}> Post the monthly report</label>
+
+  <p style="margin-top:20px"><button class="botao" type="submit">Save</button></p>
+</form>`);
+}
+
 function paginaSetup({ campos, publicUrl, recuperacao, botLigado, erros }) {
     const introducao = recuperacao
         ? '<p>The saved bot token stopped working. Paste a new one to get the bot back online.</p>'
@@ -340,6 +455,9 @@ module.exports = {
     layout,
     cabecalho,
     alertas,
+    paginaInicial,
+    paginaServidores,
+    paginaServidor,
     paginaLink,
     paginaSetup,
     paginaSetupConcluido,

@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { abrirBD } = require('../src/db');
-const { tabela, ordenarPor } = require('../src/leaderboard');
+const { tabela, ordenarPor, porMes } = require('../src/leaderboard');
 
 const AGORA = new Date('2026-10-25T12:00:00Z');
 let contador = 0;
@@ -85,6 +85,18 @@ test('zero deaths and zero kills do not divide by zero', () => {
     assert.strictEqual(l.kd, 0);
     assert.strictEqual(l.hs, 0);
     assert.strictEqual(l.precisao, 0);
+});
+
+test('porMes groups a player\'s matches by Lisbon month, newest first', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1', { quando: '2026-10-10T20:00:00.000Z' });
+    partida(db, 's1', { quando: '2026-10-31T23:30:00.000Z', v: 7, d: 13 });
+    partida(db, 's1', { quando: '2026-09-30T23:30:00.000Z' }); // 1 October 00:30 in Lisbon
+    partida(db, 's1', { quando: '2026-09-15T20:00:00.000Z' });
+    const meses = porMes(db.partidasDe(['s1'], null, null));
+    assert.deepStrictEqual(meses.map((m) => [m.mes, m.partidas, m.vitorias, m.derrotas]), [['2026-10', 3, 2, 1], ['2026-09', 1, 1, 0]]);
+    assert.strictEqual(typeof meses[0].pontos, 'number');
+    assert.strictEqual(typeof meses[0].hltv, 'number');
 });
 
 test('ordenarPor a column, ties by points', () => {

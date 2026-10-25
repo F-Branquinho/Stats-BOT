@@ -1,4 +1,4 @@
-const { intervalo } = require('./periodos');
+const { intervalo, agoraLisboa } = require('./periodos');
 
 const MIN_PARTIDAS_MVP = 5;
 
@@ -58,4 +58,20 @@ function tabelaEntre(db, steam64Ids, desde, ate, mensal = true) {
         .sort(ordenarPorPontos);
 }
 
-module.exports = { MIN_PARTIDAS_MVP, tabela, tabelaEntre, ordenarPor, ordenarPorPontos };
+/** One player's matches grouped by Lisbon month, newest first (for the profile page). */
+function porMes(partidas) {
+    const meses = new Map();
+    for (const p of partidas) {
+        const mes = agoraLisboa(new Date(p.finished_at)).mes;
+        if (!meses.has(mes)) meses.set(mes, []);
+        meses.get(mes).push(p);
+    }
+    return [...meses]
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([mes, ps]) => {
+            const { partidas: n, vitorias, empates, derrotas, pontos, hltv } = resumir(null, ps, null, true);
+            return { mes, partidas: n, vitorias, empates, derrotas, pontos, hltv };
+        });
+}
+
+module.exports = { MIN_PARTIDAS_MVP, tabela, tabelaEntre, ordenarPor, ordenarPorPontos, porMes };
