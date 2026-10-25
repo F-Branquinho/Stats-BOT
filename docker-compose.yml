@@ -1,0 +1,21 @@
+services:
+  bot:
+    build: .
+    image: stats-bot:latest
+    container_name: stats-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Europe/Lisbon
+    ports:
+      - "${WEB_PORT:-3000}:${WEB_PORT:-3000}"
+    volumes:
+      - bot-data:/app/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-data:
