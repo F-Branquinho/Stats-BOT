@@ -2,6 +2,10 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.6.1
+
+- The Leetify rating column showed rounded values (+1.00, +5.00); it now shows the real average, e.g. +1.17.
+
 ## v0.6.0
 
 - HE grenade damage: new **HE dmg** (total to enemies), **HE/nade** (average per HE) and **HE team** (to teammates) columns, also on the player profile and in `/stats`. Leetify doesn't give molotov damage.

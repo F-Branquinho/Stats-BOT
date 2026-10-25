@@ -45,7 +45,8 @@ function resumir(steam64Id, partidas, perfil, mensal) {
         heTeam: soma('he_friends_damage'),
         // Only matches with HE damage data (older ones may not have it)
         hePorNade: dividir(soma('he_foes_damage'), comHE.reduce((t, p) => t + (p.he_thrown ?? 0), 0)),
-        leetify: comLeetify.length ? arredondar(comLeetify.reduce((t, p) => t + p.leetify_rating, 0) / comLeetify.length) : null,
+        // Not rounded: ratings are small (e.g. 0.0117) and the site shows them ×100
+        leetify: comLeetify.length ? comLeetify.reduce((t, p) => t + p.leetify_rating, 0) / comLeetify.length : null,
         aim: perfil?.aim ?? null,
         elegivel: !mensal || partidas.length >= MIN_PARTIDAS_MVP,
     };

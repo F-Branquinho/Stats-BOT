@@ -130,3 +130,11 @@ test('HE damage totals, teammates and per HE (matches without HE data left out o
     assert.strictEqual(l.heTeam, 10);
     assert.strictEqual(l.hePorNade, 10);
 });
+
+test('the Leetify rating average keeps its precision (shown ×100 on the site)', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1', { leetify_rating: 0.0117 });
+    partida(db, 's1', { leetify_rating: 0.0223 });
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.ok(Math.abs(l.leetify - 0.017) < 1e-9, String(l.leetify));
+});
