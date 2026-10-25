@@ -34,6 +34,9 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
             bot: cliente().user,
             sessao: obterSessao(req),
             comandos: definicoes.map((c) => ({ nome: c.name, descricao: c.description })),
+            servidores: [...cliente().guilds.cache.values()]
+                .map((g) => ({ id: g.id, nome: g.name, icon: g.icon }))
+                .sort((a, b) => a.nome.localeCompare(b.nome)),
         }));
     });
 
@@ -55,15 +58,14 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
         res.send(views.paginaServidores({ sessao, servidores: lista }));
     });
 
-    /** The server, when the bot is in it and the user is a member (or owns the bot). */
+    // Tables and profiles are public: anyone with the link sees them, logged in or not
     function servidorVisivel(req) {
-        const guild = cliente().guilds.cache.get(req.params.id);
-        if (!guild) return null;
-        return req.sessao.dono || req.sessao.guilds.some((g) => g.id === guild.id) ? guild : null;
+        req.sessao = obterSessao(req);
+        return cliente().guilds.cache.get(req.params.id) ?? null;
     }
 
     function semAcesso(res) {
-        return res.status(404).send(views.paginaErro("This server doesn't exist, the bot isn't in it, or you're not a member.", { estado: 'Not found', link: '/dashboard' }));
+        return res.status(404).send(views.paginaErro("This server doesn't exist or the bot isn't in it.", { estado: 'Not found' }));
     }
 
     /** Linked players who are members of the server, by Steam id. */
@@ -72,7 +74,7 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
         return new Map(jogadores.map((j) => [j.steam64_id, j]));
     }
 
-    app.get('/s/:id', exigirSessao, async (req, res, next) => {
+    app.get('/s/:id', async (req, res, next) => {
         try {
             const guild = servidorVisivel(req);
             if (!guild) return semAcesso(res);
@@ -90,7 +92,7 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
         }
     });
 
-    app.get('/s/:id/p/:discordId', exigirSessao, async (req, res, next) => {
+    app.get('/s/:id/p/:discordId', async (req, res, next) => {
         try {
             const guild = servidorVisivel(req);
             if (!guild) return semAcesso(res);

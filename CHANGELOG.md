@@ -2,6 +2,12 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.2.0
+
+- Server tables and player profiles are public: no login needed to see them.
+- The landing page has a **See the table** button, or one card per server when the bot is in several.
+- The privacy policy says the tables are public.
+
 ## v0.1.0
 
 - First version.

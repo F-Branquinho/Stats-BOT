@@ -50,12 +50,13 @@ Replies use the server's language. Commands never ping anyone.
 
 ## Website
 
-- **Landing page** (`/`), **privacy policy** (`/privacy`) and **terms** (`/terms`): paste the last two in Developer Portal → General Information.
+- **Landing page** (`/`): a **See the table** button (or one card per server when the bot is in several), plus **Link your Steam account** and **Add to Discord**.
+- **Privacy policy** (`/privacy`) and **terms** (`/terms`): paste these in Developer Portal → General Information.
 - **Setup page** (`/setup`): the first time, paste the bot token, the OAuth2 client secret, the website's public address and, optionally, a [Leetify API key](https://leetify.com/app/developer) (raises the rate limits). It asks for the **setup code** shown by the installer and in the logs.
 - **Steam account** (`/link`): log in with Discord, then sign in through Steam. Shows whether Leetify found the profile. Players can unlink.
 - **Servers** (`/dashboard`): servers with the bot, plus the ones you can add it to.
-- **Table** (`/s/<server>`): one row per player, sortable by any column, for this month, last month or all time. Players under 5 matches are greyed out as not eligible for MVP. Only members of the server can see it.
-- **Player profile** (`/s/<server>/p/<user>`): totals, one row per month and the last 20 matches.
+- **Table** (`/s/<server>`): one row per player, sortable by any column, for this month, last month or all time. Players under 5 matches are greyed out as not eligible for MVP. **Public**: anyone with the link sees it, without logging in. Each server has its own table with only its members.
+- **Player profile** (`/s/<server>/p/<user>`, public): totals, one row per month and the last 20 matches.
 - **Server settings** (`/server/<server>`, Manage Server or bot owner): report channel, language, report on/off.
 - **Bot settings** (owner of the Discord application): token, client secret, public address, Leetify key and daily request budget.
 - `/health` starts with `ok` while the bot is connected, followed by the last collection time and today's Leetify requests.

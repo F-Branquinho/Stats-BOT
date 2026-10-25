@@ -127,6 +127,16 @@ ${descricao ? `<meta name="description" content="${esc(descricao)}">` : ''}
 }
 
 function cabecalho(sessao) {
+    if (!sessao) {
+        // Public pages (tables and profiles) seen without logging in
+        return `<header>
+  <div class="quem"><a class="marca-bot" href="/">Stats BOT</a></div>
+  <div class="quem">
+    <a class="botao secundario" href="/link">Link your Steam account</a>
+    <a class="botao secundario" href="/login">Log in</a>
+  </div>
+</header>`;
+    }
     return `<header>
   <div class="quem">
     <img class="avatar" src="${avatarUtilizador(sessao.userId, sessao.avatar)}" alt="">
@@ -196,8 +206,18 @@ const FUNCIONALIDADES = [
     ['⌨', 'Slash commands', '/stats, /top and /mvp right in Discord, in Portuguese or English.'],
 ];
 
-function paginaInicial({ bot, sessao, comandos }) {
+/** `servidores`: { id, nome, icon } of every server the bot is in. */
+function paginaInicial({ bot, sessao, comandos, servidores }) {
     const nome = esc(bot.username);
+    // One server: a button straight to its table. Several: a card per server.
+    const verTabela = servidores.length === 1 ? `<a class="botao grande" href="/s/${esc(servidores[0].id)}">See the table</a>` : '';
+    const tabelas = servidores.length > 1 ? `
+<section class="secao">
+  <h2>Tables</h2>
+  <div class="cartoes">
+    ${servidores.map((s) => `<a class="cartao servidor" style="text-decoration:none;color:inherit" href="/s/${esc(s.id)}">${iconeServidor(s.id, s.nome, s.icon)}<span class="nome">${esc(s.nome)}</span></a>`).join('')}
+  </div>
+</section>` : '';
     return layout(`${bot.username}: CS2 stats for your Discord`, `
 <nav class="topo">
   <a class="marca-bot" href="/"><img class="avatar" src="${avatarUtilizador(bot.id, bot.avatar)}" alt="">${nome}</a>
@@ -209,10 +229,12 @@ function paginaInicial({ bot, sessao, comandos }) {
   <h1>Who really carries your server?</h1>
   <p class="lead">${nome} builds a CS2 leaderboard for your Discord server from Leetify and crowns the MVP of the month.</p>
   <div class="acoes">
-    <a class="botao grande" href="/link">Link your Steam account</a>
+    ${verTabela}
+    <a class="botao${verTabela ? ' secundario' : ''} grande" href="/link">Link your Steam account</a>
     <a class="botao secundario grande" href="/add">Add to Discord</a>
   </div>
 </section>
+${tabelas}
 
 <section class="secao">
   <h2>What it does</h2>
@@ -400,7 +422,7 @@ function paginaPrivacidade({ botNome }) {
 </ul>
 
 <h2>Who sees it</h2>
-<p>Your stats are shown in the tables, commands and monthly reports of the Discord servers you share with the bot, to members of those servers.</p>
+<p>Your Discord display name, avatar and stats are shown in the <strong>public tables and profiles</strong> on this website, for every Discord server you share with the bot. Anyone with the link can see them, without logging in. They also appear in the commands and monthly reports of those servers.</p>
 
 <h2>What the bot reads but does not store</h2>
 <ul>
