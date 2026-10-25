@@ -20,7 +20,7 @@ function arrancar() {
         hoje: () => agoraLisboa().data,
     });
     const recolha = criarRecolha({ db, leetify });
-    definirBD(db, recolha);
+    definirBD(db, recolha, leetify);
 
     const bot = require('./bot');
     const painel = require('./web/server').iniciarPainel(bot, { db, recolha });

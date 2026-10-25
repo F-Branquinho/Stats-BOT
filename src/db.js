@@ -119,11 +119,14 @@ function abrirBD(ficheiro) {
             ON CONFLICT (day) DO UPDATE SET requests = requests + 1`),
     };
 
-    const ligarJogador = db.transaction(({ discordId, steam64Id, nome = null, avatar = null }) => {
+    /** `forcar` moves a Steam account that is linked to someone else (the old link is removed). */
+    const ligarJogador = db.transaction(({ discordId, steam64Id, nome = null, avatar = null, forcar = false }) => {
         const dono = q.jogadorPorSteam.get(steam64Id);
-        if (dono && dono.discord_id !== discordId) return { ok: false, motivo: 'steam_ocupada' };
+        const outro = dono && dono.discord_id !== discordId;
+        if (outro && !forcar) return { ok: false, motivo: 'steam_ocupada' };
+        if (outro) q.desligar.run(dono.discord_id);
         q.ligar.run({ discordId, steam64Id, nome, avatar, agora: new Date().toISOString() });
-        return { ok: true };
+        return outro ? { ok: true, movidoDe: dono.discord_id } : { ok: true };
     });
 
     const guardarPartida = db.transaction((match, s) => {

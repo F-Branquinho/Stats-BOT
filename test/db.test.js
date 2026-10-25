@@ -139,3 +139,11 @@ test('request counter per day', () => {
     assert.strictEqual(db.pedidosHoje('2026-10-22'), 2);
     assert.strictEqual(db.pedidosHoje('2026-10-23'), 0);
 });
+
+test('ligarJogador with forcar moves a Steam account to another Discord user', () => {
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
+    assert.deepStrictEqual(db.ligarJogador({ discordId: 'd2', steam64Id: 's1', nome: 'Rui', forcar: true }), { ok: true, movidoDe: 'd1' });
+    assert.strictEqual(db.jogadorPorSteam('s1').discord_id, 'd2');
+    assert.strictEqual(db.jogador('d1'), undefined);
+});

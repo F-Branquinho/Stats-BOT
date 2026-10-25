@@ -4,6 +4,7 @@ const { IDIOMAS } = require('../i18n');
 const { definicoes } = require('../commands');
 const { tabela, ordenarPor, porMes } = require('../leaderboard');
 const { membrosLigados, temPermissao } = require('../membros');
+const { escolherVencedores, premiosPorJogador } = require('../report');
 const views = require('./views');
 const { COLUNAS_VALIDAS, paginaTabela, paginaPerfil } = require('./views-tabela');
 
@@ -86,7 +87,9 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
                 const j = jogadores.get(l.steam64Id);
                 return { ...l, discordId: j.discord_id, nome: j.name ?? j.discord_id, avatar: j.avatar };
             });
-            res.send(paginaTabela({ sessao: req.sessao, guild, linhas, periodo, ordem }));
+            // Awards are monthly: who is leading this month, or who won last month
+            const premios = periodo === 'sempre' ? new Map() : premiosPorJogador(escolherVencedores(linhas));
+            res.send(paginaTabela({ sessao: req.sessao, guild, linhas, periodo, ordem, premios }));
         } catch (error) {
             next(error);
         }

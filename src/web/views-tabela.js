@@ -32,6 +32,28 @@ const COLUNAS = [
 ];
 const COLUNAS_VALIDAS = new Set(COLUNAS.map(([c]) => c));
 
+// Award → tooltip text and how its value is shown
+const PREMIOS = {
+    mvp: ['the MVP race', (v) => `${v} points`],
+    kills: ['most kills', String],
+    aim: ['best aim', percentagem],
+    hs: ['best HS%', percentagem],
+    flash: ['most enemies flashed', String],
+    teamflash: ['most team flashes', String],
+    partidas: ['most matches', String],
+};
+const LEGENDA = '🏆 MVP · 🔫 most kills · 🎯 best aim · 🧠 best HS% · 💡 most enemies flashed · 🤦 most team flashes · 🎮 most matches';
+
+function emojisPremios(lista, periodo) {
+    return (lista ?? []).map(({ premio, emoji, valor }) => {
+        const [nome, formato] = PREMIOS[premio];
+        const texto = premio === 'mvp'
+            ? `${periodo === 'mes' ? 'Leading' : 'Won'} the MVP race (${formato(valor)})`
+            : `${periodo === 'mes' ? 'Leading' : 'Won'}: ${nome} (${formato(valor)})`;
+        return `<span class="premio" title="${esc(texto)}">${emoji}</span>`;
+    }).join('');
+}
+
 function nomePeriodo(periodo) {
     return PERIODOS.find(([p]) => p === periodo)?.[1] ?? '';
 }
@@ -45,8 +67,9 @@ function topoServidor(guild, subtitulo) {
 
 /**
  * `linhas` are leaderboard rows plus { discordId, nome, avatar }, already sorted.
+ * `premios`: Map steam64Id → awards that player is winning (report.premiosPorJogador); empty for all time.
  */
-function paginaTabela({ sessao, guild, linhas, periodo, ordem }) {
+function paginaTabela({ sessao, guild, linhas, periodo, ordem, premios = new Map() }) {
     const url = (p, o) => esc(`/s/${guild.id}?periodo=${p}&ordem=${o}`);
     const mensal = periodo !== 'sempre';
 
@@ -57,7 +80,7 @@ function paginaTabela({ sessao, guild, linhas, periodo, ordem }) {
         const celulas = COLUNAS.map(([c, , formato]) => `<td>${esc(formato(l[c], l))}</td>`).join('');
         return `<tr${mensal && !l.elegivel ? ' class="inelegivel"' : ''}>
   <td>${i + 1}</td>
-  <td class="jogador"><a href="/s/${esc(guild.id)}/p/${esc(l.discordId)}"><img class="avatar mini" src="${avatarUtilizador(l.discordId, l.avatar)}" alt="">${esc(l.nome)}</a>${nota}</td>
+  <td class="jogador"><a href="/s/${esc(guild.id)}/p/${esc(l.discordId)}"><img class="avatar mini" src="${avatarUtilizador(l.discordId, l.avatar)}" alt="">${esc(l.nome)}</a>${mensal ? emojisPremios(premios.get(l.steam64Id), periodo) : ''}${nota}</td>
   ${celulas}
 </tr>`;
     }).join('');
@@ -75,6 +98,7 @@ ${cabecalho(sessao)}
 ${topoServidor(guild, `CS2 stats · ${nomePeriodo(periodo)}`)}
 <nav class="periodos">${periodos}</nav>
 ${tabela}
+${mensal && linhas.length ? `<p class="legenda">${periodo === 'mes' ? 'Leading this month' : 'Winners'}: ${LEGENDA}</p>` : ''}
 <p class="ajuda">Points per match: win 3, draw 1, loss 0, plus 0–5 for the HLTV 1.0 rating (0.80 → 1, 0.95 → 2, 1.05 → 3, 1.20 → 4, 1.40 → 5).
 MVP of the month: most points with at least 5 matches. Aim is the current Leetify aim rating.</p>`, { larga: true });
 }

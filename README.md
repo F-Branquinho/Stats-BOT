@@ -41,7 +41,7 @@ Only players with 5+ matches compete, except for 🎮. The report is sent once p
 | Command | What it does |
 |---|---|
 | `/link` | Link to connect your Steam account (only you see it) |
-| `/add steam64:<id> [user]` | Adds a Steam account to the table by its Steam64 ID (or `steamcommunity.com/profiles/…` link) and fetches its matches right away. With `user:`, links someone else's account (requires **Manage Server**). Unlike `/link`, Steam doesn't confirm the account is yours |
+| `/add steam64:<id> [user]` | Adds a Steam account to the table by its Steam64 ID (or `steamcommunity.com/profiles/…` link) and fetches its matches right away. With `user:`, links someone else's account (requires **Manage Server**); an admin can also move a Steam account that was linked to the wrong person. The reply shows the Leetify name and says whether the profile is private or has no Leetify account. Unlike `/link`, Steam doesn't confirm the account is yours |
 | `/stats [user]` | This month's summary: points, W/D/L, HLTV rating, kills, K/D, HS%, aim, flashes, team flashes |
 | `/top [category] [period]` | Top 10 by points, kills, aim, HS%, enemies flashed, team flashes or matches; this month, last month or all time |
 | `/mvp` | This month's MVP race |
@@ -56,7 +56,7 @@ Replies use the server's language. Commands never ping anyone.
 - **Setup page** (`/setup`): the first time, paste the bot token, the OAuth2 client secret, the website's public address and, optionally, a [Leetify API key](https://leetify.com/app/developer) (raises the rate limits). It asks for the **setup code** shown by the installer and in the logs.
 - **Steam account** (`/link`): log in with Discord, then sign in through Steam. Shows whether Leetify found the profile. Players can unlink.
 - **Servers** (`/dashboard`): servers with the bot, plus the ones you can add it to.
-- **Table** (`/s/<server>`): one row per player, sortable by any column, for this month, last month or all time. Players under 5 matches are greyed out as not eligible for MVP. **Public**: anyone with the link sees it, without logging in. Each server has its own table with only its members.
+- **Table** (`/s/<server>`): one row per player, sortable by any column, for this month, last month or all time. Players under 5 matches are greyed out as not eligible for MVP. Emojis next to a name show who is leading each award this month (🏆 🔫 🎯 🧠 💡 🤦 🎮), or who won it last month; hover for the value. **Public**: anyone with the link sees it, without logging in. Each server has its own table with only its members.
 - **Player profile** (`/s/<server>/p/<user>`, public): totals, one row per month and the last 20 matches.
 - **Server settings** (`/server/<server>`, Manage Server or bot owner): report channel, language, report on/off.
 - **Bot settings** (owner of the Discord application): token, client secret, public address, Leetify key and daily request budget.

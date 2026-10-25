@@ -31,60 +31,73 @@ test('lerSteam64 refuses anything else', () => {
     }
 });
 
-function contexto() {
+function contexto(mini = { existe: true, publico: true, nome: 'Ana CS' }) {
     const db = abrirBD(':memory:');
     const recolhidos = [];
     const recolha = { recolherJogador: async (s) => { recolhidos.push(s); return 7; } };
-    return { db, recolha, recolhidos };
+    const leetify = { miniPerfil: async () => mini };
+    return { db, recolha, leetify, recolhidos };
 }
 const ana = { id: 'd1', nome: 'Ana', avatar: null };
 const rui = { id: 'd2', nome: 'Rui', avatar: 'abc' };
 
 test('ligarPorComando links yourself and fetches the matches right away', async () => {
-    const { db, recolha, recolhidos } = contexto();
-    const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
-    assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: 7, estado: 'ok' });
+    const { db, recolha, leetify, recolhidos } = contexto();
+    const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+    assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: 7, estado: 'ok', movidoDe: null, leetify: { existe: true, publico: true, nome: 'Ana CS' } });
     assert.strictEqual(db.jogador('d1').steam64_id, '76561198053742791');
     assert.deepStrictEqual(recolhidos, ['76561198053742791']);
 });
 
 test('ligarPorComando: invalid id', async () => {
-    const { db, recolha, recolhidos } = contexto();
-    assert.deepStrictEqual(await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: 'abc', podeGerir: false }), { ok: false, motivo: 'invalido' });
+    const { db, recolha, leetify, recolhidos } = contexto();
+    assert.deepStrictEqual(await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: 'abc', podeGerir: false }), { ok: false, motivo: 'invalido' });
     assert.deepStrictEqual(recolhidos, []);
 });
 
 test('ligarPorComando: linking someone else needs Manage Server', async () => {
-    const { db, recolha } = contexto();
-    assert.deepStrictEqual(await ligarPorComando({ db, recolha, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'sem_permissao' });
+    const { db, recolha, leetify } = contexto();
+    assert.deepStrictEqual(await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'sem_permissao' });
     assert.strictEqual(db.jogador('d2'), undefined);
-    const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: true });
+    const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: true });
     assert.strictEqual(r.ok, true);
     assert.strictEqual(db.jogador('d2').name, 'Rui');
 });
 
 test('ligarPorComando: a Steam account linked to someone else is refused', async () => {
-    const { db, recolha } = contexto();
+    const { db, recolha, leetify } = contexto();
     db.ligarJogador({ discordId: 'd2', steam64Id: '76561198053742791', nome: 'Rui' });
-    assert.deepStrictEqual(await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'steam_ocupada' });
+    assert.deepStrictEqual(await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'steam_ocupada' });
     assert.strictEqual(db.jogadorPorSteam('76561198053742791').discord_id, 'd2');
 });
 
+test('ligarPorComando: with Manage Server, a Steam account moves to the right person', async () => {
+    const { db, recolha, leetify } = contexto();
+    db.ligarJogador({ discordId: 'd1', steam64Id: '76561198053742791', nome: 'Ana' });
+    const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: true });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.movidoDe, 'd1');
+    assert.strictEqual(db.jogadorPorSteam('76561198053742791').discord_id, 'd2');
+    assert.strictEqual(db.jogador('d1'), undefined);
+});
+
 test('ligarPorComando: Leetify not finding the profile is reported', async () => {
-    const { db } = contexto();
+    const { db, leetify } = contexto();
     const recolha = { recolherJogador: async (s) => { db.marcarEstado(s, 'not_found'); return 0; } };
-    const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
-    assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: 0, estado: 'not_found' });
+    const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+    assert.strictEqual(r.novas, 0);
+    assert.strictEqual(r.estado, 'not_found');
 });
 
 test('ligarPorComando: a Leetify outage still links, without matches yet', async () => {
-    const { db } = contexto();
+    const { db, leetify } = contexto();
     const recolha = { recolherJogador: async () => { throw new Error('Leetify answered 502'); } };
     const erro = console.error;
     console.error = () => {};
     try {
-        const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
-        assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: null, estado: 'ok' });
+        const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+        assert.strictEqual(r.novas, null);
+    assert.strictEqual(r.estado, 'ok');
     } finally {
         console.error = erro;
     }
@@ -131,4 +144,40 @@ test('every /add reply exists in Portuguese and English', () => {
         }
         assert.match(t.cmd.ajuda, /\/add/, `${codigo} help lists /add`);
     }
+});
+
+test('ligarPorComando reports a private Leetify profile with its name', async () => {
+    const { db, leetify } = contexto({ existe: true, publico: false, nome: 'Spooked' });
+    const recolha = { recolherJogador: async (s) => { db.marcarEstado(s, 'not_found'); return 0; } };
+    const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+    assert.deepStrictEqual(r.leetify, { existe: true, publico: false, nome: 'Spooked' });
+});
+
+test('ligarPorComando works when the mini-profile is unavailable', async () => {
+    const { db, recolha, leetify } = contexto(null);
+    const r = await ligarPorComando({ db, recolha, leetify, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.leetify, null);
+});
+
+test('every /add reply exists in Portuguese and English (v0.4.0)', () => {
+    const { IDIOMAS } = require('../src/i18n');
+    for (const [codigo, t] of Object.entries(IDIOMAS)) {
+        for (const chave of ['privado', 'semConta', 'movido']) {
+            assert.ok(typeof t.cmd.add?.[chave] === 'string' && t.cmd.add[chave].length > 0, `${codigo}.cmd.add.${chave}`);
+        }
+    }
+});
+
+test('respostaAdd picks the right message', () => {
+    const { respostaAdd } = require('../src/commands');
+    const { idioma } = require('../src/i18n');
+    const t = idioma('en');
+    const base = { ok: true, steam64Id: '76561198053742791', novas: 3, estado: 'ok', movidoDe: null, leetify: { existe: true, publico: true, nome: 'Ana CS' } };
+    assert.match(respostaAdd(base, t, '<@d1>'), /Ana CS.*3 new matches/);
+    assert.match(respostaAdd({ ...base, estado: 'not_found', leetify: { existe: true, publico: false, nome: 'Spooked' } }, t, '<@d1>'), /Spooked.*private/);
+    assert.match(respostaAdd({ ...base, estado: 'not_found', leetify: { existe: false, publico: false, nome: null } }, t, '<@d1>'), /no Leetify account/);
+    assert.match(respostaAdd({ ...base, estado: 'not_found', leetify: null }, t, '<@d1>'), /couldn't find the profile/);
+    assert.match(respostaAdd({ ...base, movidoDe: 'd9' }, t, '<@d1>'), /<@d9>/);
+    assert.match(respostaAdd({ ok: false, motivo: 'steam_ocupada' }, t, '<@d1>'), /already linked/);
 });

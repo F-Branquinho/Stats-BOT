@@ -26,6 +26,26 @@ function escolherVencedores(linhas) {
     return { top: elegiveis.slice(0, 10), premios };
 }
 
+const EMOJIS = { mvp: '🏆', kills: '🔫', aim: '🎯', hs: '🧠', flash: '💡', teamflash: '🤦', partidas: '🎮' };
+
+/**
+ * The awards each player is winning, for the table: Map steam64Id → [{ premio, emoji, valor }],
+ * with the MVP (1st in points) first.
+ */
+function premiosPorJogador(vencedores) {
+    const mapa = new Map();
+    const juntar = (steam64Id, premio, valor) => {
+        if (!mapa.has(steam64Id)) mapa.set(steam64Id, []);
+        mapa.get(steam64Id).push({ premio, emoji: EMOJIS[premio], valor });
+    };
+    if (vencedores.top[0]) juntar(vencedores.top[0].steam64Id, 'mvp', vencedores.top[0].pontos);
+    for (const premio of Object.keys(PREMIOS)) {
+        const v = vencedores.premios[premio];
+        if (v) juntar(v.steam64Id, premio, v.valor);
+    }
+    return mapa;
+}
+
 const percentagem = (v) => `${Math.round(v * 100)}%`;
 const FORMATOS = { aim: percentagem, hs: percentagem };
 
@@ -53,4 +73,4 @@ function mensagemRelatorio({ vencedores, mes, idioma: codigo, mencao }) {
     return [titulo, '', t.top, ...top, '', t.premios, ...premios].join('\n');
 }
 
-module.exports = { escolherVencedores, mensagemRelatorio };
+module.exports = { escolherVencedores, mensagemRelatorio, premiosPorJogador };

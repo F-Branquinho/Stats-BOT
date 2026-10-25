@@ -2,6 +2,12 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.4.0
+
+- The table shows an emoji next to whoever is leading each award this month (🏆 MVP, 🔫 kills, 🎯 aim, 🧠 HS%, 💡 enemies flashed, 🤦 team flashes, 🎮 matches), with the same rules as the monthly report. Last month shows the winners; all time shows none.
+- `/add`: members with Manage Server can move a Steam account that was linked to the wrong person.
+- `/add` replies with the Leetify name of the account and tells a private Leetify profile apart from a Steam account with no Leetify account.
+
 ## v0.3.0
 
 - `/add steam64:<id> [user]`: adds a Steam account to the table by its Steam64 ID or profile link, without signing in through Steam, and fetches its matches right away. Linking someone else's account requires Manage Server; a Steam account already linked to someone else is refused.

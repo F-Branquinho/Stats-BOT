@@ -70,3 +70,18 @@ test('a full report fits in one Discord message', () => {
         assert.ok(texto.length <= 2000, `${idioma}: ${texto.length}`);
     }
 });
+
+test('premiosPorJogador: who leads each award, MVP included', () => {
+    const { premiosPorJogador } = require('../src/report');
+    const linhas = [
+        linha(1, { kills: 300, cegos: 10 }),
+        linha(2, { kills: 100, cegos: 50, partidas: 20 }),
+        linha(3, { elegivel: false, partidas: 30, kills: 999 }),
+    ];
+    const mapa = premiosPorJogador(escolherVencedores(linhas));
+    assert.deepStrictEqual(mapa.get('s1').map((p) => p.premio), ['mvp', 'kills', 'aim', 'hs', 'teamflash']);
+    assert.deepStrictEqual(mapa.get('s2').map((p) => p.premio), ['flash']);
+    assert.deepStrictEqual(mapa.get('s3').map((p) => p.premio), ['partidas']);
+    assert.deepStrictEqual(mapa.get('s1').find((p) => p.premio === 'kills'), { premio: 'kills', emoji: '🔫', valor: 300 });
+    assert.strictEqual(mapa.get('s1')[0].emoji, '🏆');
+});

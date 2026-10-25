@@ -132,12 +132,14 @@ function lerSteam64(texto) {
  * and fetches their matches right away.
  * @returns {Promise<{ ok: true, steam64Id: string, novas: number | null, estado: string } | { ok: false, motivo: 'invalido' | 'sem_permissao' | 'steam_ocupada' }>}
  */
-async function ligarPorComando({ db: bd, recolha: rc, autorId, alvo, texto, podeGerir }) {
+async function ligarPorComando({ db: bd, recolha: rc, leetify: lt = null, autorId, alvo, texto, podeGerir }) {
     const steam64Id = lerSteam64(texto);
     if (!steam64Id) return { ok: false, motivo: 'invalido' };
     if (alvo.id !== autorId && !podeGerir) return { ok: false, motivo: 'sem_permissao' };
-    const ligacao = bd.ligarJogador({ discordId: alvo.id, steam64Id, nome: alvo.nome, avatar: alvo.avatar });
+    // Admins can move an account that was linked to the wrong person
+    const ligacao = bd.ligarJogador({ discordId: alvo.id, steam64Id, nome: alvo.nome, avatar: alvo.avatar, forcar: podeGerir });
     if (!ligacao.ok) return ligacao;
+    const movidoDe = ligacao.movidoDe ?? null;
     console.log(`🔗 ${alvo.nome} (${alvo.id}) linked Steam ${steam64Id} with /add (by ${autorId})`);
 
     let novas = null;
@@ -147,16 +149,32 @@ async function ligarPorComando({ db: bd, recolha: rc, autorId, alvo, texto, pode
         // Linked anyway: the next collection fetches the matches
         console.error(`❌ Could not fetch matches of ${steam64Id}:`, error.message);
     }
-    return { ok: true, steam64Id, novas, estado: bd.jogadorPorSteam(steam64Id).leetify_status };
+    // The Leetify name confirms the right account was linked, and tells private profiles from missing ones
+    const leetify = lt ? await lt.miniPerfil(steam64Id) : null;
+    return { ok: true, steam64Id, novas, estado: bd.jogadorPorSteam(steam64Id).leetify_status, movidoDe, leetify };
+}
+
+/** The /add reply for a ligarPorComando result. */
+function respostaAdd(r, t, jogador) {
+    if (!r.ok) return preencher(t.cmd.add[r.motivo], { jogador });
+    const vars = { jogador, steam: r.steam64Id, nome: r.leetify?.nome ?? r.steam64Id, n: r.novas };
+    let texto;
+    if (r.estado === 'ok') texto = preencher(r.novas === null ? t.cmd.add.depois : t.cmd.add.ok, vars);
+    else if (r.leetify?.existe === false) texto = preencher(t.cmd.add.semConta, vars);
+    else if (r.leetify?.existe) texto = preencher(t.cmd.add.privado, vars);
+    else texto = preencher(t.cmd.add.semLeetify, vars);
+    return r.movidoDe ? `${texto}\n${preencher(t.cmd.add.movido, { antigo: `<@${r.movidoDe}>` })}` : texto;
 }
 
 let db = null;
 let recolha = null;
+let leetify = null;
 
-/** The database and collector the commands use (set once at startup). */
-function definirBD(bd, rc = null) {
+/** The database, collector and Leetify client the commands use (set once at startup). */
+function definirBD(bd, rc = null, lt = null) {
     db = bd;
     recolha = rc;
+    leetify = lt;
 }
 
 async function linhasDoServidor(guild, periodo) {
@@ -178,18 +196,13 @@ const COMANDOS = {
         const r = await ligarPorComando({
             db,
             recolha,
+            leetify,
             autorId: interaction.user.id,
             alvo: { id: user.id, nome: user.globalName ?? user.username, avatar: user.avatar },
             texto: interaction.options.getString('steam64'),
             podeGerir: Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)),
         });
-        const jogador = `<@${user.id}>`;
-        let content;
-        if (!r.ok) content = preencher(t.cmd.add[r.motivo], { jogador });
-        else if (r.estado !== 'ok') content = preencher(t.cmd.add.semLeetify, { jogador, steam: r.steam64Id });
-        else if (r.novas === null) content = preencher(t.cmd.add.depois, { jogador, steam: r.steam64Id });
-        else content = preencher(t.cmd.add.ok, { jogador, steam: r.steam64Id, n: r.novas });
-        await interaction.editReply({ content, allowedMentions: SEM_PINGS });
+        await interaction.editReply({ content: respostaAdd(r, t, `<@${user.id}>`), allowedMentions: SEM_PINGS });
     },
 
     async stats(interaction, t, codigo) {
@@ -257,5 +270,5 @@ async function tratarInteracao(interaction) {
 }
 
 module.exports = {
-    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, urlConvite, registarComandos, definirBD, tratarInteracao,
+    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, respostaAdd, urlConvite, registarComandos, definirBD, tratarInteracao,
 };

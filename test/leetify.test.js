@@ -88,3 +88,25 @@ test('requests have a timeout signal', async () => {
     await leetify.perfil('s1');
     assert.ok(pedidos[0].opcoes.signal);
 });
+
+test('miniPerfil: account with public stats', async () => {
+    const { pedidos, leetify } = preparar({ respostas: [resposta(200, { name: 'FriqzZ', isSensitiveDataVisible: true })] });
+    assert.deepStrictEqual(await leetify.miniPerfil('s1'), { existe: true, publico: true, nome: 'FriqzZ' });
+    assert.strictEqual(pedidos[0].url, 'https://api.cs-prod.leetify.com/api/mini-profiles/s1');
+});
+
+test('miniPerfil: account with private stats', async () => {
+    const { leetify } = preparar({ respostas: [resposta(200, { name: 'Spooked', isSensitiveDataVisible: false })] });
+    assert.deepStrictEqual(await leetify.miniPerfil('s1'), { existe: true, publico: false, nome: 'Spooked' });
+});
+
+test('miniPerfil: no Leetify account', async () => {
+    const { leetify } = preparar({ respostas: [resposta(404, 'Not Found')] });
+    assert.deepStrictEqual(await leetify.miniPerfil('s1'), { existe: false, publico: false, nome: null });
+});
+
+test('miniPerfil: unexpected answers give null (the endpoint is not official)', async () => {
+    const { leetify } = preparar({ respostas: [resposta(500, 'oops'), resposta(200, 'not json')] });
+    assert.strictEqual(await leetify.miniPerfil('s1'), null);
+    assert.strictEqual(await leetify.miniPerfil('s1'), null);
+});

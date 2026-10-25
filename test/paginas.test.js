@@ -96,3 +96,15 @@ test('server settings still need a login', async () => {
         fechar();
     }
 });
+
+test('the table shows award emojis this month but not all time', async () => {
+    const { url, fechar } = await site();
+    try {
+        const mes = await (await fetch(`${url}/s/g1`)).text();
+        assert.match(mes, /class="premio"[^>]*>🎮/);
+        const sempre = await (await fetch(`${url}/s/g1?periodo=sempre`)).text();
+        assert.ok(!sempre.includes('class="premio"'));
+    } finally {
+        fechar();
+    }
+});

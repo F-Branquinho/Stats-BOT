@@ -62,3 +62,24 @@ test('profile lists months and recent matches', () => {
     assert.match(html, /FACEIT/);
     assert.match(html, /class="res-V"/);
 });
+
+test('award leaders get their emojis with a tooltip', () => {
+    const premios = new Map([['s1', [{ premio: 'mvp', emoji: '🏆', valor: 30 }, { premio: 'kills', emoji: '🔫', valor: 120 }, { premio: 'hs', emoji: '🧠', valor: 0.45 }]]]);
+    const html = paginaTabela({ sessao, guild, linhas: [linha()], periodo: 'mes', ordem: 'pontos', premios });
+    assert.match(html, /<span class="premio" title="Leading the MVP race \(30 points\)">🏆<\/span>/);
+    assert.match(html, /title="Leading: most kills \(120\)">🔫/);
+    assert.match(html, /title="Leading: best HS% \(45%\)">🧠/);
+    assert.match(html, /class="legenda"/);
+});
+
+test('last month shows the winners, not the leaders', () => {
+    const premios = new Map([['s1', [{ premio: 'kills', emoji: '🔫', valor: 120 }]]]);
+    const html = paginaTabela({ sessao, guild, linhas: [linha()], periodo: 'mes_passado', ordem: 'pontos', premios });
+    assert.match(html, /title="Won: most kills \(120\)">🔫/);
+});
+
+test('all time has no award emojis', () => {
+    const html = paginaTabela({ sessao, guild, linhas: [linha()], periodo: 'sempre', ordem: 'pontos', premios: new Map() });
+    assert.ok(!html.includes('class="premio"'));
+    assert.ok(!html.includes('class="legenda"'));
+});
