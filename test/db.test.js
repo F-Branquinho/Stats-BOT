@@ -79,6 +79,26 @@ test('a match that does not count is stored but left out of partidasDe', () => {
     assert.strictEqual(db.partidasDe(['s1'], null, null).length, 0);
 });
 
+test('a match without id or finished_at is skipped without throwing', () => {
+    const db = abrirBD(':memory:');
+    assert.strictEqual(db.guardarPartida({ ...premier, finished_at: undefined }, stats(premier, 's1')), false);
+    assert.strictEqual(db.guardarPartida({ ...premier, id: undefined }, stats(premier, 's1')), false);
+    assert.strictEqual(db.contarPartidas(), 0);
+});
+
+test('a ban flagged after the first fetch stops the match from counting', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPartida(premier, stats(premier, 's1'));
+    db.guardarPartida(premier, stats(premier, 's2'));
+    assert.strictEqual(db.partidasDe(['s1', 's2'], null, null).length, 2);
+    assert.strictEqual(db.guardarPartida({ ...premier, has_banned_player: true }, stats(premier, 's1')), false);
+    assert.strictEqual(db.partidasDe(['s1', 's2'], null, null).length, 0);
+    // A later answer without the flag doesn't undo it
+    db.guardarPartida({ ...premier, has_banned_player: false }, stats(premier, 's1'));
+    db.guardarPartida({ ...premier, has_banned_player: false }, stats(premier, 's3'));
+    assert.strictEqual(db.partidasDe(['s1', 's2', 's3'], null, null).length, 0);
+});
+
 test('partidasDe filters by date range [desde, ate)', () => {
     const db = abrirBD(':memory:');
     db.guardarPartida(premier, stats(premier, 's1'));
@@ -97,9 +117,9 @@ test('guardarPerfil keeps the latest Leetify ratings', () => {
 
 test('servidor defaults and guardarServidor', () => {
     const db = abrirBD(':memory:');
-    assert.deepStrictEqual(db.servidor('g1'), { reportChannelId: null, language: 'pt', reportEnabled: true });
-    db.guardarServidor('g1', { reportChannelId: 'c1', language: 'en', reportEnabled: false });
-    assert.deepStrictEqual(db.servidor('g1'), { reportChannelId: 'c1', language: 'en', reportEnabled: false });
+    assert.deepStrictEqual(db.servidor('g1'), { reportChannelId: null, language: 'pt', reportEnabled: true, configuredAt: null });
+    db.guardarServidor('g1', { reportChannelId: 'c1', language: 'en', reportEnabled: false }, new Date('2026-10-01T00:00:00Z'));
+    assert.deepStrictEqual(db.servidor('g1'), { reportChannelId: 'c1', language: 'en', reportEnabled: false, configuredAt: '2026-10-01T00:00:00.000Z' });
 });
 
 test('relatorioEnviado / marcarRelatorio per guild and month', () => {

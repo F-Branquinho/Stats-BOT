@@ -2,22 +2,39 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { criarMembros } = require('../src/membros');
 
-function guildFalsa(membros) {
+const jogadores = [{ discord_id: 'd1', steam64_id: 's1' }, { discord_id: 'd2', steam64_id: 's2' }];
+
+// Like discord.js: without force, a member in the cache is returned even after they left
+function guildFalsa(membros, { cache = [], permissoes = {} } = {}) {
     const pedidos = [];
     return {
         pedidos,
         id: 'g1',
         members: {
-            fetch: async (id) => {
+            fetch: async (opcoes) => {
+                const id = typeof opcoes === 'string' ? opcoes : opcoes.user;
+                const membro = { id, permissions: { has: (p) => (permissoes[id] ?? []).includes(p) } };
+                if (!opcoes.force && cache.includes(id)) return membro;
                 pedidos.push(id);
-                if (membros.includes(id)) return { id };
+                if (membros.includes(id)) return membro;
                 throw Object.assign(new Error('Unknown Member'), { code: 10007 });
             },
         },
     };
 }
 
-const jogadores = [{ discord_id: 'd1', steam64_id: 's1' }, { discord_id: 'd2', steam64_id: 's2' }];
+test('a member who left is left out even if discord.js still has them cached', async () => {
+    const { membrosLigados } = criarMembros();
+    const guild = guildFalsa([], { cache: ['d1'] });
+    assert.deepStrictEqual(await membrosLigados(guild, jogadores), []);
+});
+
+test('temPermissao asks Discord, not the stale cache', async () => {
+    const { temPermissao } = criarMembros();
+    const guild = guildFalsa(['d1'], { cache: ['d2'], permissoes: { d1: ['gerir'], d2: ['gerir'] } });
+    assert.strictEqual(await temPermissao(guild, 'd1', 'gerir'), true);
+    assert.strictEqual(await temPermissao(guild, 'd2', 'gerir'), false);
+});
 
 test('members who left the server are left out', async () => {
     const { membrosLigados } = criarMembros();

@@ -1,5 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
+// Servers set up long before the months these tests look at
+const CONFIGURADO = new Date('2026-01-01T00:00:00Z');
 const { abrirBD } = require('../src/db');
 const { enviarRelatorios } = require('../src/envio');
 
@@ -7,7 +9,7 @@ const AGORA = new Date('2026-11-01T12:00:00Z');
 
 function preparar({ falharEnvio = false } = {}) {
     const db = abrirBD(':memory:');
-    db.guardarServidor('g1', { reportChannelId: 'c1', language: 'pt', reportEnabled: true });
+    db.guardarServidor('g1', { reportChannelId: 'c1', language: 'pt', reportEnabled: true }, CONFIGURADO);
     db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
     for (let i = 0; i < 5; i++) {
         db.guardarPartida(

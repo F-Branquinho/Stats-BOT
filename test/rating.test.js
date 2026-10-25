@@ -39,6 +39,15 @@ test('partida sem rondas: no rating and not counted, without throwing', () => {
     assert.strictEqual(hltv1({}), null);
 });
 
+test('partidaConta: missing kills, deaths or round results do not count', () => {
+    const base = { data_source: 'matchmaking', has_banned_player: false };
+    for (const campo of ['total_kills', 'total_deaths', 'rounds_won', 'rounds_lost']) {
+        const stats = { ...s1mple };
+        delete stats[campo];
+        assert.strictEqual(partidaConta(base, stats), false, campo);
+    }
+});
+
 test('partidaConta: Premier, Competitive and FACEIT count', () => {
     for (const m of partidas.filter((p) => p.data_source !== 'matchmaking_wingman')) {
         assert.strictEqual(partidaConta(m, m.stats[0]), true, m.data_source);

@@ -42,7 +42,12 @@ function criarRecolha({ db, leetify, esperar = dormir, agora = () => new Date() 
             db.marcarEstado(s, 'ok');
             db.marcarRecolha(s, quando);
             if (antigo(jogador.profile_at, agora())) {
-                db.guardarPerfil(s, await pedir(() => leetify.perfil(s)));
+                try {
+                    db.guardarPerfil(s, await pedir(() => leetify.perfil(s)));
+                } catch (error) {
+                    // The matches came back, so the player is fine; only the profile ratings are missing
+                    if (!(error instanceof ErroPerfil)) throw error;
+                }
                 db.marcarPerfilRecolhido(s, quando);
             }
             return novas;

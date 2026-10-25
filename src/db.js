@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS guilds (
     guild_id          TEXT PRIMARY KEY,
     report_channel_id TEXT,
     language          TEXT NOT NULL DEFAULT 'pt',
-    report_enabled    INTEGER NOT NULL DEFAULT 1
+    report_enabled    INTEGER NOT NULL DEFAULT 1,
+    configured_at     TEXT
 );
 CREATE TABLE IF NOT EXISTS reports (
     guild_id TEXT NOT NULL,
@@ -89,8 +90,12 @@ function abrirBD(ficheiro) {
         estado: db.prepare('UPDATE players SET leetify_status = ? WHERE steam64_id = ?'),
         recolha: db.prepare('UPDATE players SET last_fetched_at = ? WHERE steam64_id = ?'),
         perfilRecolhido: db.prepare('UPDATE players SET profile_at = ? WHERE steam64_id = ?'),
-        partida: db.prepare(`INSERT OR IGNORE INTO matches (id, finished_at, map_name, data_source, has_banned_player)
-            VALUES (@id, @finished_at, @map_name, @data_source, @has_banned_player)`),
+        // Bans often land days after a match: once Leetify flags it, it stays flagged
+        partida: db.prepare(`INSERT INTO matches (id, finished_at, map_name, data_source, has_banned_player)
+            VALUES (@id, @finished_at, @map_name, @data_source, @has_banned_player)
+            ON CONFLICT (id) DO UPDATE SET has_banned_player = MAX(has_banned_player, excluded.has_banned_player)`),
+        descontar: db.prepare('UPDATE player_matches SET counted = 0 WHERE match_id = ?'),
+        banida: db.prepare('SELECT has_banned_player FROM matches WHERE id = ?').pluck(),
         jogadorPartida: db.prepare(`INSERT OR IGNORE INTO player_matches VALUES (
             @match_id, @steam64_id, @kills, @deaths, @assists, @hs_kills, @rounds, @rounds_won, @rounds_lost,
             @multi1k, @multi2k, @multi3k, @multi4k, @multi5k, @dpr, @leetify_rating, @accuracy_head,
@@ -104,7 +109,7 @@ function abrirBD(ficheiro) {
                 positioning = excluded.positioning, premier = excluded.premier,
                 faceit_elo = excluded.faceit_elo, updated_at = excluded.updated_at`),
         servidor: db.prepare('SELECT * FROM guilds WHERE guild_id = ?'),
-        guardarServidor: db.prepare(`INSERT INTO guilds VALUES (@guildId, @reportChannelId, @language, @reportEnabled)
+        guardarServidor: db.prepare(`INSERT INTO guilds VALUES (@guildId, @reportChannelId, @language, @reportEnabled, @agora)
             ON CONFLICT (guild_id) DO UPDATE SET report_channel_id = excluded.report_channel_id,
                 language = excluded.language, report_enabled = excluded.report_enabled`),
         relatorio: db.prepare('SELECT 1 FROM reports WHERE guild_id = ? AND month = ?'),
@@ -122,8 +127,10 @@ function abrirBD(ficheiro) {
     });
 
     const guardarPartida = db.transaction((match, s) => {
+        if (!match.id || !match.finished_at || !s.steam64_id) return false;
         const rating = hltv1(s);
         const res = resultado(s);
+        if (match.has_banned_player) q.descontar.run(match.id);
         q.partida.run({
             id: match.id,
             finished_at: match.finished_at,
@@ -131,6 +138,7 @@ function abrirBD(ficheiro) {
             data_source: match.data_source ?? null,
             has_banned_player: match.has_banned_player ? 1 : 0,
         });
+        const banida = q.banida.get(match.id) === 1;
         const info = q.jogadorPartida.run({
             match_id: match.id,
             steam64_id: s.steam64_id,
@@ -160,7 +168,7 @@ function abrirBD(ficheiro) {
             result: res,
             hltv_rating: rating,
             points: rating === null ? 0 : pontos(res, rating),
-            counted: partidaConta(match, s) ? 1 : 0,
+            counted: partidaConta({ ...match, has_banned_player: banida }, s) ? 1 : 0,
         });
         return info.changes > 0;
     });
@@ -208,14 +216,17 @@ function abrirBD(ficheiro) {
                 reportChannelId: g?.report_channel_id ?? null,
                 language: g?.language ?? 'pt',
                 reportEnabled: g ? g.report_enabled === 1 : true,
+                // When the server was first set up (no report for months before that)
+                configuredAt: g?.configured_at ?? null,
             };
         },
-        guardarServidor(guildId, cfg) {
+        guardarServidor(guildId, cfg, agora = new Date()) {
             q.guardarServidor.run({
                 guildId,
                 reportChannelId: cfg.reportChannelId ?? null,
                 language: cfg.language,
                 reportEnabled: cfg.reportEnabled ? 1 : 0,
+                agora: agora.toISOString(),
             });
         },
         relatorioEnviado: (guildId, mes) => Boolean(q.relatorio.get(guildId, mes)),

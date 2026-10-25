@@ -3,7 +3,7 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { IDIOMAS } = require('../i18n');
 const { definicoes } = require('../commands');
 const { tabela, ordenarPor, porMes } = require('../leaderboard');
-const { membrosLigados } = require('../membros');
+const { membrosLigados, temPermissao } = require('../membros');
 const views = require('./views');
 const { COLUNAS_VALIDAS, paginaTabela, paginaPerfil } = require('./views-tabela');
 
@@ -119,8 +119,7 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
         const guild = cliente().guilds.cache.get(req.params.id);
         if (!guild) return null;
         if (req.sessao.dono) return guild;
-        const membro = await guild.members.fetch(req.sessao.userId).catch(() => null);
-        return membro?.permissions.has(ManageGuild) ? guild : null;
+        return (await temPermissao(guild, req.sessao.userId, ManageGuild)) ? guild : null;
     }
 
     function negar(req, res) {

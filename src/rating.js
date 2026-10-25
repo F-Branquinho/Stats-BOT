@@ -35,9 +35,13 @@ function pontos(res, rating) {
     return PONTOS_RESULTADO[res] + bonusRating(rating);
 }
 
+// Without these a match would get a made-up result and rating
+const CAMPOS_ESSENCIAIS = ['total_kills', 'total_deaths', 'rounds_won', 'rounds_lost'];
+
 /** Whether the match goes into the stats (it is stored either way). */
 function partidaConta(match, s) {
     return !match.has_banned_player
+        && CAMPOS_ESSENCIAIS.every((campo) => typeof s[campo] === 'number')
         && FONTES_CONTADAS.includes(match.data_source)
         && (s.rounds_count ?? 0) >= MIN_RONDAS
         && hltv1(s) !== null;

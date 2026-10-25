@@ -124,6 +124,13 @@ test('a network error on one player does not stop the others', async () => {
     }
 });
 
+test('a profile 404 after the matches came back keeps the player ok', async () => {
+    const { db, recolha } = preparar({ jogadores: ['s1'], perfil: async () => { throw new ErroPerfil('not_found'); } });
+    const r = await recolha.recolherTudo();
+    assert.strictEqual(r.novas, 4);
+    assert.strictEqual(db.jogador('d0').leetify_status, 'ok');
+});
+
 test('only one run at a time', async () => {
     const { recolha } = preparar();
     const [a, b] = await Promise.all([recolha.recolherTudo(), recolha.recolherTudo()]);

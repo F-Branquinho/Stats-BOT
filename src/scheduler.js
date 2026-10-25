@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { TIMEZONE } = require('./config');
-const { agoraLisboa, mesAnterior } = require('./periodos');
+const { agoraLisboa, mesAnterior, intervaloDoMes } = require('./periodos');
 
 const HORA_RELATORIO = 12;
 const doisDigitos = (n) => String(n).padStart(2, '0');
@@ -18,15 +18,18 @@ function emJanela({ hora, minuto }) {
 
 /**
  * Servers that still need last month's report: from the 1st at 12:00 (Lisbon) onwards,
- * so a report missed while the bot was down is sent when it's back.
+ * so a report missed while the bot was down is sent when it's back. Servers set up during
+ * this month don't get last month's report.
  */
 function relatoriosPendentes(db, guildIds, agora = new Date()) {
     const l = agoraLisboa(agora);
     if (l.dia === 1 && l.hora < HORA_RELATORIO) return [];
     const mes = mesAnterior(l.mes);
+    const inicioDoMes = intervaloDoMes(l.mes).desde;
     return guildIds.filter((id) => {
         const cfg = db.servidor(id);
-        return cfg.reportEnabled && cfg.reportChannelId && !db.relatorioEnviado(id, mes);
+        return cfg.reportEnabled && cfg.reportChannelId && cfg.configuredAt && cfg.configuredAt < inicioDoMes
+            && !db.relatorioEnviado(id, mes);
     });
 }
 

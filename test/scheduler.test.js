@@ -1,5 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
+// Servers set up long before the months these tests look at
+const CONFIGURADO = new Date('2026-01-01T00:00:00Z');
 const { abrirBD } = require('../src/db');
 const { HORARIOS, emJanela, relatoriosPendentes, tick } = require('../src/scheduler');
 
@@ -22,9 +24,9 @@ test('emJanela matches slots only', () => {
 
 function servidores() {
     const db = abrirBD(':memory:');
-    db.guardarServidor('g1', { reportChannelId: 'c1', language: 'pt', reportEnabled: true });
-    db.guardarServidor('sem-canal', { reportChannelId: null, language: 'pt', reportEnabled: true });
-    db.guardarServidor('desligado', { reportChannelId: 'c2', language: 'pt', reportEnabled: false });
+    db.guardarServidor('g1', { reportChannelId: 'c1', language: 'pt', reportEnabled: true }, CONFIGURADO);
+    db.guardarServidor('sem-canal', { reportChannelId: null, language: 'pt', reportEnabled: true }, CONFIGURADO);
+    db.guardarServidor('desligado', { reportChannelId: 'c2', language: 'pt', reportEnabled: false }, CONFIGURADO);
     return db;
 }
 const IDS = ['g1', 'sem-canal', 'desligado'];
@@ -42,6 +44,16 @@ test('relatoriosPendentes: later in the month catches up, unless already sent', 
     assert.deepStrictEqual(relatoriosPendentes(db, IDS, new Date('2026-11-03T09:00:00Z')), ['g1']);
     db.marcarRelatorio('g1', '2026-10');
     assert.deepStrictEqual(relatoriosPendentes(db, IDS, new Date('2026-11-03T09:00:00Z')), []);
+});
+
+test('relatoriosPendentes: a server set up during this month gets no report for last month', () => {
+    const db = abrirBD(':memory:');
+    db.guardarServidor('novo', { reportChannelId: 'c1', language: 'pt', reportEnabled: true }, new Date('2026-11-10T20:00:00Z'));
+    assert.deepStrictEqual(relatoriosPendentes(db, ['novo'], new Date('2026-11-15T12:00:00Z')), []);
+    assert.deepStrictEqual(relatoriosPendentes(db, ['novo'], new Date('2026-12-01T12:00:00Z')), ['novo']);
+    // Changing the settings later keeps the original date
+    db.guardarServidor('novo', { reportChannelId: 'c2', language: 'en', reportEnabled: true }, new Date('2026-12-05T10:00:00Z'));
+    assert.deepStrictEqual(relatoriosPendentes(db, ['novo'], new Date('2026-12-06T12:00:00Z')), ['novo']);
 });
 
 function fakes({ pendentes = [] } = {}) {
