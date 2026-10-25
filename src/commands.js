@@ -1,4 +1,4 @@
-const { MessageFlags, RESTJSONErrorCodes, SlashCommandBuilder } = require('discord.js');
+const { MessageFlags, PermissionFlagsBits, RESTJSONErrorCodes, SlashCommandBuilder } = require('discord.js');
 const settings = require('./settings');
 const { idioma, preencher, nomeDoMes } = require('./i18n');
 const { intervalo } = require('./periodos');
@@ -28,6 +28,11 @@ const definicoes = [
     new SlashCommandBuilder()
         .setName('link')
         .setDescription('Link your Steam account to appear in the stats'),
+    new SlashCommandBuilder()
+        .setName('add')
+        .setDescription('Add a Steam account to the table by its Steam64 ID')
+        .addStringOption((o) => o.setName('steam64').setDescription('Steam64 ID (7656119…) or steamcommunity.com/profiles/… link').setRequired(true).setMaxLength(100))
+        .addUserOption((o) => o.setName('user').setDescription('Whose account it is (defaults to you; others need Manage Server)')),
     new SlashCommandBuilder()
         .setName('stats')
         .setDescription("This month's stats of a player")
@@ -115,11 +120,43 @@ async function registarComandos(guild) {
     }
 }
 
-let db = null;
+/** A Steam64 ID from the ID itself or a steamcommunity.com/profiles/ link, or null. */
+function lerSteam64(texto) {
+    const t = String(texto ?? '').trim();
+    const id = /^(?:https?:\/\/)?(?:www\.)?steamcommunity\.com\/profiles\/(\d+)\/?$/i.exec(t)?.[1] ?? t;
+    return /^7656119\d{10}$/.test(id) ? id : null;
+}
 
-/** The database the commands read from (set once at startup). */
-function definirBD(bd) {
+/**
+ * /add: links a Steam64 ID to a Discord user (yourself, or anyone with Manage Server)
+ * and fetches their matches right away.
+ * @returns {Promise<{ ok: true, steam64Id: string, novas: number | null, estado: string } | { ok: false, motivo: 'invalido' | 'sem_permissao' | 'steam_ocupada' }>}
+ */
+async function ligarPorComando({ db: bd, recolha: rc, autorId, alvo, texto, podeGerir }) {
+    const steam64Id = lerSteam64(texto);
+    if (!steam64Id) return { ok: false, motivo: 'invalido' };
+    if (alvo.id !== autorId && !podeGerir) return { ok: false, motivo: 'sem_permissao' };
+    const ligacao = bd.ligarJogador({ discordId: alvo.id, steam64Id, nome: alvo.nome, avatar: alvo.avatar });
+    if (!ligacao.ok) return ligacao;
+    console.log(`🔗 ${alvo.nome} (${alvo.id}) linked Steam ${steam64Id} with /add (by ${autorId})`);
+
+    let novas = null;
+    try {
+        novas = await rc.recolherJogador(steam64Id);
+    } catch (error) {
+        // Linked anyway: the next collection fetches the matches
+        console.error(`❌ Could not fetch matches of ${steam64Id}:`, error.message);
+    }
+    return { ok: true, steam64Id, novas, estado: bd.jogadorPorSteam(steam64Id).leetify_status };
+}
+
+let db = null;
+let recolha = null;
+
+/** The database and collector the commands use (set once at startup). */
+function definirBD(bd, rc = null) {
     db = bd;
+    recolha = rc;
 }
 
 async function linhasDoServidor(guild, periodo) {
@@ -133,6 +170,26 @@ const COMANDOS = {
         const { publicUrl } = settings.obter();
         const content = publicUrl ? preencher(t.cmd.link, { url: `${publicUrl}/link` }) : t.cmd.semSite;
         await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    },
+
+    async add(interaction, t) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const user = interaction.options.getUser('user') ?? interaction.user;
+        const r = await ligarPorComando({
+            db,
+            recolha,
+            autorId: interaction.user.id,
+            alvo: { id: user.id, nome: user.globalName ?? user.username, avatar: user.avatar },
+            texto: interaction.options.getString('steam64'),
+            podeGerir: Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)),
+        });
+        const jogador = `<@${user.id}>`;
+        let content;
+        if (!r.ok) content = preencher(t.cmd.add[r.motivo], { jogador });
+        else if (r.estado !== 'ok') content = preencher(t.cmd.add.semLeetify, { jogador, steam: r.steam64Id });
+        else if (r.novas === null) content = preencher(t.cmd.add.depois, { jogador, steam: r.steam64Id });
+        else content = preencher(t.cmd.add.ok, { jogador, steam: r.steam64Id, n: r.novas });
+        await interaction.editReply({ content, allowedMentions: SEM_PINGS });
     },
 
     async stats(interaction, t, codigo) {
@@ -200,5 +257,5 @@ async function tratarInteracao(interaction) {
 }
 
 module.exports = {
-    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, urlConvite, registarComandos, definirBD, tratarInteracao,
+    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, urlConvite, registarComandos, definirBD, tratarInteracao,
 };

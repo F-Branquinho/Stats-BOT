@@ -41,6 +41,7 @@ Only players with 5+ matches compete, except for 🎮. The report is sent once p
 | Command | What it does |
 |---|---|
 | `/link` | Link to connect your Steam account (only you see it) |
+| `/add steam64:<id> [user]` | Adds a Steam account to the table by its Steam64 ID (or `steamcommunity.com/profiles/…` link) and fetches its matches right away. With `user:`, links someone else's account (requires **Manage Server**). Unlike `/link`, Steam doesn't confirm the account is yours |
 | `/stats [user]` | This month's summary: points, W/D/L, HLTV rating, kills, K/D, HS%, aim, flashes, team flashes |
 | `/top [category] [period]` | Top 10 by points, kills, aim, HS%, enemies flashed, team flashes or matches; this month, last month or all time |
 | `/mvp` | This month's MVP race |

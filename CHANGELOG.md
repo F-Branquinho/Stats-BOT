@@ -2,6 +2,10 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.3.0
+
+- `/add steam64:<id> [user]`: adds a Steam account to the table by its Steam64 ID or profile link, without signing in through Steam, and fetches its matches right away. Linking someone else's account requires Manage Server; a Steam account already linked to someone else is refused.
+
 ## v0.2.0
 
 - Server tables and player profiles are public: no login needed to see them.

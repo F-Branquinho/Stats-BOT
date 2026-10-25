@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { definicoes, linhaStats, linhasTop, CATEGORIAS } = require('../src/commands');
+const { definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, CATEGORIAS } = require('../src/commands');
+const { abrirBD } = require('../src/db');
 
 const linha = {
     steam64Id: 's1', partidas: 12, vitorias: 7, empates: 1, derrotas: 4, pontos: 55, hltv: 1.08,
@@ -9,7 +10,84 @@ const linha = {
 };
 
 test('command names', () => {
-    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'stats', 'top', 'mvp', 'stats-help']);
+    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'stats', 'top', 'mvp', 'stats-help']);
+});
+
+test('/add takes a required steam64 and an optional user', () => {
+    const add = definicoes.find((c) => c.name === 'add');
+    assert.deepStrictEqual(add.options.map((o) => [o.name, Boolean(o.required)]), [['steam64', true], ['user', false]]);
+});
+
+test('lerSteam64 accepts the id and profile links', () => {
+    assert.strictEqual(lerSteam64('76561198053742791'), '76561198053742791');
+    assert.strictEqual(lerSteam64('  76561198053742791 '), '76561198053742791');
+    assert.strictEqual(lerSteam64('https://steamcommunity.com/profiles/76561198053742791/'), '76561198053742791');
+    assert.strictEqual(lerSteam64('steamcommunity.com/profiles/76561198053742791'), '76561198053742791');
+});
+
+test('lerSteam64 refuses anything else', () => {
+    for (const mau of ['', 'abc', '12345', '7656119805374279', '765611980537427912', 'https://steamcommunity.com/id/nome', '86561198053742791']) {
+        assert.strictEqual(lerSteam64(mau), null, mau);
+    }
+});
+
+function contexto() {
+    const db = abrirBD(':memory:');
+    const recolhidos = [];
+    const recolha = { recolherJogador: async (s) => { recolhidos.push(s); return 7; } };
+    return { db, recolha, recolhidos };
+}
+const ana = { id: 'd1', nome: 'Ana', avatar: null };
+const rui = { id: 'd2', nome: 'Rui', avatar: 'abc' };
+
+test('ligarPorComando links yourself and fetches the matches right away', async () => {
+    const { db, recolha, recolhidos } = contexto();
+    const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+    assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: 7, estado: 'ok' });
+    assert.strictEqual(db.jogador('d1').steam64_id, '76561198053742791');
+    assert.deepStrictEqual(recolhidos, ['76561198053742791']);
+});
+
+test('ligarPorComando: invalid id', async () => {
+    const { db, recolha, recolhidos } = contexto();
+    assert.deepStrictEqual(await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: 'abc', podeGerir: false }), { ok: false, motivo: 'invalido' });
+    assert.deepStrictEqual(recolhidos, []);
+});
+
+test('ligarPorComando: linking someone else needs Manage Server', async () => {
+    const { db, recolha } = contexto();
+    assert.deepStrictEqual(await ligarPorComando({ db, recolha, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'sem_permissao' });
+    assert.strictEqual(db.jogador('d2'), undefined);
+    const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: rui, texto: '76561198053742791', podeGerir: true });
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(db.jogador('d2').name, 'Rui');
+});
+
+test('ligarPorComando: a Steam account linked to someone else is refused', async () => {
+    const { db, recolha } = contexto();
+    db.ligarJogador({ discordId: 'd2', steam64Id: '76561198053742791', nome: 'Rui' });
+    assert.deepStrictEqual(await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'steam_ocupada' });
+    assert.strictEqual(db.jogadorPorSteam('76561198053742791').discord_id, 'd2');
+});
+
+test('ligarPorComando: Leetify not finding the profile is reported', async () => {
+    const { db } = contexto();
+    const recolha = { recolherJogador: async (s) => { db.marcarEstado(s, 'not_found'); return 0; } };
+    const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+    assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: 0, estado: 'not_found' });
+});
+
+test('ligarPorComando: a Leetify outage still links, without matches yet', async () => {
+    const { db } = contexto();
+    const recolha = { recolherJogador: async () => { throw new Error('Leetify answered 502'); } };
+    const erro = console.error;
+    console.error = () => {};
+    try {
+        const r = await ligarPorComando({ db, recolha, autorId: 'd1', alvo: ana, texto: '76561198053742791', podeGerir: false });
+        assert.deepStrictEqual(r, { ok: true, steam64Id: '76561198053742791', novas: null, estado: 'ok' });
+    } finally {
+        console.error = erro;
+    }
 });
 
 test('/top choices for category and period', () => {
@@ -43,4 +121,14 @@ test('linhasTop formats values per category, at most 10 lines', () => {
     assert.strictEqual(l.length, 10);
     assert.strictEqual(l[0], '1. <@s0> — 50%');
     assert.strictEqual(linhasTop([linha], 'points', (s) => s), '1. s1 — 55');
+});
+
+test('every /add reply exists in Portuguese and English', () => {
+    const { IDIOMAS } = require('../src/i18n');
+    for (const [codigo, t] of Object.entries(IDIOMAS)) {
+        for (const chave of ['ok', 'depois', 'semLeetify', 'invalido', 'sem_permissao', 'steam_ocupada']) {
+            assert.ok(typeof t.cmd.add?.[chave] === 'string' && t.cmd.add[chave].length > 0, `${codigo}.cmd.add.${chave}`);
+        }
+        assert.match(t.cmd.ajuda, /\/add/, `${codigo} help lists /add`);
+    }
 });
