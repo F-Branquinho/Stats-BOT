@@ -1,5 +1,5 @@
-// Texts the bot posts in a server (the monthly report), in each supported language.
-// Placeholders: {nome}.
+// Texts the bot posts in a server (monthly report and command replies), in each supported language.
+// Texts use {placeholders}, filled in by preencher().
 
 const IDIOMAS = {
     pt: {
@@ -17,6 +17,35 @@ const IDIOMAS = {
         teamflash: '🤦 Rei das team flashes: {jogador} ({valor} aliados cegos)',
         partidas: '🎮 Quem jogou mais: {jogador} ({valor} partidas)',
         semElegiveis: 'Ninguém jogou pelo menos {minimo} partidas em {periodo}, por isso este mês não há MVP.',
+        partidasN: 'partidas',
+        cmd: {
+            link: 'Abre {url} para ligares a tua conta Steam. Precisas de uma conta na Leetify com o perfil público.',
+            semSite: 'O site ainda não está configurado.',
+            naoLigadoTu: 'Ainda não ligaste a tua conta Steam. Usa `/link`.',
+            naoLigado: '{jogador} ainda não ligou a conta Steam.',
+            semLeetify: 'A Leetify não encontrou o perfil de {jogador}. É preciso ter conta em leetify.com e o perfil público (Leetify → Settings → Privacy).',
+            semPartidas: '{jogador} ainda não tem partidas contadas em {periodo}.',
+            stats: '**{jogador}** · {periodo}\n{linha}',
+            top: '**Top {categoria}** · {periodo}',
+            topVazio: 'Ainda não há partidas contadas em {periodo}.',
+            mvp: '**Corrida ao MVP** · {periodo}',
+            mvpVazio: 'Ainda ninguém tem {minimo} partidas em {periodo}.',
+            mvpFora: '{n} jogador(es) ainda com menos de {minimo} partidas.',
+            sempre: 'sempre',
+            categorias: { points: 'pontos', kills: 'kills', aim: 'aim (precisão)', hs: 'HS%', flashes: 'inimigos cegos', teamflash: 'team flashes', matches: 'partidas' },
+            ajuda: [
+                '**Stats BOT** — estatísticas de CS2 do servidor, a partir da Leetify.',
+                'Cada partida dá pontos: vitória 3, empate 1, derrota 0, mais um bónus de 0 a 5 pelo HLTV rating. No dia 1 de cada mês sai o top 10 e o MVP (mínimo {minimo} partidas).',
+                '',
+                '`/link` liga a tua conta Steam',
+                '`/stats [user]` resumo do mês',
+                '`/top [category] [period]` top 10 por categoria',
+                '`/mvp` corrida ao MVP deste mês',
+                '`/stats-help` esta ajuda',
+                '',
+                'Tabela completa: {url}',
+            ].join('\n'),
+        },
     },
     en: {
         nome: 'English',
@@ -33,6 +62,35 @@ const IDIOMAS = {
         teamflash: '🤦 Team flash king: {jogador} ({valor} teammates flashed)',
         partidas: '🎮 Most matches: {jogador} ({valor} matches)',
         semElegiveis: 'Nobody played at least {minimo} matches in {periodo}, so there is no MVP this month.',
+        partidasN: 'matches',
+        cmd: {
+            link: 'Open {url} to link your Steam account. You need a Leetify account with a public profile.',
+            semSite: "The website isn't set up yet.",
+            naoLigadoTu: "You haven't linked your Steam account yet. Use `/link`.",
+            naoLigado: "{jogador} hasn't linked a Steam account yet.",
+            semLeetify: "Leetify couldn't find {jogador}'s profile. They need an account on leetify.com with a public profile (Leetify → Settings → Privacy).",
+            semPartidas: '{jogador} has no counted matches in {periodo} yet.',
+            stats: '**{jogador}** · {periodo}\n{linha}',
+            top: '**Top {categoria}** · {periodo}',
+            topVazio: 'No counted matches in {periodo} yet.',
+            mvp: '**MVP race** · {periodo}',
+            mvpVazio: 'Nobody has {minimo} matches in {periodo} yet.',
+            mvpFora: '{n} player(s) still under {minimo} matches.',
+            sempre: 'all time',
+            categorias: { points: 'points', kills: 'kills', aim: 'aim (accuracy)', hs: 'HS%', flashes: 'enemies flashed', teamflash: 'team flashes', matches: 'matches' },
+            ajuda: [
+                "**Stats BOT** — this server's CS2 stats, from Leetify.",
+                'Each match gives points: win 3, draw 1, loss 0, plus a 0–5 bonus from the HLTV rating. On the 1st of each month the bot posts the top 10 and the MVP (at least {minimo} matches).',
+                '',
+                '`/link` link your Steam account',
+                "`/stats [user]` this month's summary",
+                '`/top [category] [period]` top 10 by category',
+                "`/mvp` this month's MVP race",
+                '`/stats-help` this help',
+                '',
+                'Full table: {url}',
+            ].join('\n'),
+        },
     },
 };
 const IDIOMA_POR_OMISSAO = 'pt';
