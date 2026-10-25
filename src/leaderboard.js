@@ -1,0 +1,61 @@
+const { intervalo } = require('./periodos');
+
+const MIN_PARTIDAS_MVP = 5;
+
+const dividir = (a, b) => (b ? a / b : 0);
+const arredondar = (n) => Math.round(n * 100) / 100;
+
+/** Points desc, then wins, average HLTV rating and matches. */
+function ordenarPorPontos(a, b) {
+    return b.pontos - a.pontos || b.vitorias - a.vitorias || b.hltv - a.hltv || b.partidas - a.partidas;
+}
+
+/** Sorts by any numeric column (desc, empty values last); ties, and unknown columns, by points. */
+function ordenarPor(linhas, coluna) {
+    const valor = (l) => (typeof l[coluna] === 'number' ? l[coluna] : -Infinity);
+    return [...linhas].sort((a, b) => (valor(a) !== valor(b) ? valor(b) - valor(a) : ordenarPorPontos(a, b)));
+}
+
+function resumir(steam64Id, partidas, perfil, mensal) {
+    const soma = (campo) => partidas.reduce((t, p) => t + (p[campo] ?? 0), 0);
+    const comLeetify = partidas.filter((p) => p.leetify_rating !== null);
+    const kills = soma('kills');
+    const deaths = soma('deaths');
+    return {
+        steam64Id,
+        partidas: partidas.length,
+        vitorias: partidas.filter((p) => p.result === 'V').length,
+        empates: partidas.filter((p) => p.result === 'E').length,
+        derrotas: partidas.filter((p) => p.result === 'D').length,
+        pontos: soma('points'),
+        hltv: arredondar(dividir(soma('hltv_rating'), partidas.length)),
+        kills,
+        deaths,
+        kd: arredondar(deaths ? kills / deaths : kills),
+        hs: dividir(soma('hs_kills'), kills),
+        precisao: dividir(soma('shots_hit_enemy_spotted'), soma('shots_fired_enemy_spotted')),
+        flashes: soma('flash_thrown'),
+        cegos: soma('flash_hit_foe'),
+        teamflashes: soma('flash_hit_friend'),
+        leetify: comLeetify.length ? arredondar(comLeetify.reduce((t, p) => t + p.leetify_rating, 0) / comLeetify.length) : null,
+        aim: perfil?.aim ?? null,
+        elegivel: !mensal || partidas.length >= MIN_PARTIDAS_MVP,
+    };
+}
+
+/** One row per player with counted matches in the period, sorted by points. */
+function tabela(db, steam64Ids, periodo, agora = new Date()) {
+    const { desde, ate, mes } = intervalo(periodo, agora);
+    return tabelaEntre(db, steam64Ids, desde, ate, mes !== null);
+}
+
+function tabelaEntre(db, steam64Ids, desde, ate, mensal = true) {
+    const porJogador = new Map(steam64Ids.map((s) => [s, []]));
+    for (const p of db.partidasDe(steam64Ids, desde, ate)) porJogador.get(p.steam64_id).push(p);
+    return [...porJogador]
+        .filter(([, partidas]) => partidas.length > 0)
+        .map(([s, partidas]) => resumir(s, partidas, db.perfil(s), mensal))
+        .sort(ordenarPorPontos);
+}
+
+module.exports = { MIN_PARTIDAS_MVP, tabela, tabelaEntre, ordenarPor, ordenarPorPontos };
