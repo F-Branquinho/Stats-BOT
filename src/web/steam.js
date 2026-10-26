@@ -4,6 +4,7 @@ const STEAM_LOGIN = 'https://steamcommunity.com/openid/login';
 const OPENID_NS = 'http://specs.openid.net/auth/2.0';
 const ID_STEAM = /^https:\/\/steamcommunity\.com\/openid\/id\/(\d{17})$/;
 const CAMINHO_RETORNO = '/link/steam/callback';
+const CAMPOS_ASSINADOS = ['op_endpoint', 'claimed_id', 'identity', 'return_to', 'response_nonce'];
 
 function urlLogin(publicUrl, state) {
     const url = new URL(STEAM_LOGIN);
@@ -28,6 +29,10 @@ async function verificar(query, { fetch = globalThis.fetch, publicUrl }) {
     if (!String(query['openid.return_to'] ?? '').startsWith(`${publicUrl}${CAMINHO_RETORNO}`)) return null;
     const id = ID_STEAM.exec(String(query['openid.claimed_id'] ?? ''))?.[1];
     if (!id) return null;
+    if (query['openid.identity'] !== query['openid.claimed_id']) return null;
+    // The fields we rely on must be covered by Steam's signature
+    const assinados = new Set(String(query['openid.signed'] ?? '').split(','));
+    if (!CAMPOS_ASSINADOS.every((c) => assinados.has(c))) return null;
 
     const corpo = new URLSearchParams();
     for (const [chave, valor] of Object.entries(query)) {

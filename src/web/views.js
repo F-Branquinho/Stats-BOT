@@ -425,7 +425,7 @@ function paginaPrivacidade({ botNome }) {
 </ul>
 
 <h2>Who sees it</h2>
-<p>Your Discord display name, avatar and stats are shown in the <strong>public tables and profiles</strong> on this website, for every Discord server you share with the bot. Anyone with the link can see them, without logging in. They also appear in the commands and monthly reports of those servers.</p>
+<p>Your Discord display name, avatar and stats are shown in the <strong>public tables and profiles</strong> on this website, for every Discord server the bot is in. Anyone with the link can see them, without logging in. They also appear in the commands and monthly reports of those servers.</p>
 
 <h2>What the bot reads but does not store</h2>
 <ul>
@@ -441,7 +441,7 @@ function paginaPrivacidade({ botNome }) {
 
 <h2>Deleting your data</h2>
 <ul>
-  <li>Click <strong>Unlink</strong> on the Steam account page and the bot stops showing and fetching your stats.</li>
+  <li>Click <strong>Unlink</strong> on the Steam account page, or use <code>/remove</code> in Discord, and the bot stops showing and fetching your stats.</li>
   <li>To have your stored matches deleted too, open an issue on the <a href="${REPOSITORIO}/issues" target="_blank" rel="noopener">project's GitHub</a>.</li>
 </ul>
 </div>`, { descricao: `What ${botNome} stores and why.` });

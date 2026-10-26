@@ -9,7 +9,7 @@ It runs 24/7 in a Proxmox LXC (or Docker) and is published to the internet throu
 - Players open the website, log in with Discord and **sign in through Steam**. They need a Leetify account with a **public profile** (Leetify → Settings → Privacy). Leetify answers the same way for private and missing profiles, so the site shows "not found or private" for both.
 - Every 30 minutes from **16:00 to 04:00** (Lisbon) the bot asks Leetify for each linked player's latest matches and stores the new ones in SQLite (`data/stats.db`). Leetify only returns the last 100 matches, so the history is kept by the bot.
 - Only **Premier, Competitive and FACEIT** matches count. Wingman, pro demos, matches with a banned player and matches under 10 rounds are stored but left out of the stats.
-- A server's table shows the linked players who are members of that server.
+- The tables show every linked player (the stats are public). Admins take players off with `/remove`.
 
 ### Points and MVP
 
@@ -43,6 +43,7 @@ Only players with 5+ matches compete, except for 🎮. The report is sent once p
 | `/link` | Link to connect your Steam account (only you see it) |
 | `/add steam64:<id> [user]` | Adds a Steam account to the table by its Steam64 ID (or `steamcommunity.com/profiles/…` link) and fetches its matches right away. With `user:`, links someone else's account (requires **Manage Server**); an admin can also move a Steam account that was linked to the wrong person. The reply shows the Leetify name and says whether the profile is private or has no Leetify account. Unlike `/link`, Steam doesn't confirm the account is yours |
 | `/stats [user]` | This month's summary: points, W/D/L, HLTV rating, kills, K/D, HS%, aim, enemies and teammates flashed (with Flash % and TF %), HE damage |
+| `/remove [user] [steam64]` | Takes a player off the table: yourself with no options, or someone else by user or Steam64 ID (requires **Manage Server**) |
 | `/table` | A button that opens this server's table on the website (only you see it) |
 | `/top category [period]` | Top 10 by kills, ADR, aim, HS%, enemies flashed, Flash %, team flashes, HE damage, ACEs, 3Ks, trade % or matches; this month, last month or all time |
 | `/mvp` | This month's MVP race: top 10 by points with the gap to 1st, who is still short of 5 matches, and who leads each award |
@@ -57,7 +58,7 @@ Replies use the server's language. Commands never ping anyone.
 - **Setup page** (`/setup`): the first time, paste the bot token, the OAuth2 client secret, the website's public address and, optionally, a [Leetify API key](https://leetify.com/app/developer) (raises the rate limits). It asks for the **setup code** shown by the installer and in the logs.
 - **Steam account** (`/link`): log in with Discord, then sign in through Steam. Shows whether Leetify found the profile. Players can unlink.
 - **Servers** (`/dashboard`): servers with the bot, plus the ones you can add it to.
-- **Tables** (`/s/<server>`): one row per player in four tables, each sortable by any of its columns: **main** (points, HLTV, ADR, kills, K/D, HS%, aim, Leetify rating), **💣 utility** (flashes, Flash %/TF % per flash thrown, blind time, flash kills and assists, HE damage, molotovs, smokes, nades per round, unused utility), **🔥 multi-kills and trades** (2K–ACE, MVP stars, trades, Leetify clutch/opening) and **🎯 aim** (accuracy, spray, counter-strafing, preaim, reaction time). The period applies to all of them, for this month, last month or all time. Players under 5 matches are greyed out as not eligible for MVP. Emojis next to a name show who is leading each award this month (🏆 🔫 🎯 🧠 💡 🤦 🎮), or who won it last month; hover for the value. **Public**: anyone with the link sees it, without logging in. Each server has its own table with only its members.
+- **Tables** (`/s/<server>`): one row per player in four tables, each sortable by any of its columns: **main** (points, HLTV, ADR, kills, K/D, HS%, aim, Leetify rating), **💣 utility** (flashes, Flash %/TF % per flash thrown, blind time, flash kills and assists, HE damage, molotovs, smokes, nades per round, unused utility), **🔥 multi-kills and trades** (2K–ACE, MVP stars, trades, Leetify clutch/opening) and **🎯 aim** (accuracy, spray, counter-strafing, preaim, reaction time). The period applies to all of them, for this month, last month or all time. Players under 5 matches are greyed out as not eligible for MVP. Emojis next to a name show who is leading each award this month (🏆 🔫 🎯 🧠 💡 🤦 🎮), or who won it last month; hover for the value. **Public**: anyone with the link sees it, without logging in. It shows every linked player and loads without asking Discord anything.
 - **Player profile** (`/s/<server>/p/<user>`, public): totals, one row per month and the last 20 matches.
 - **Server settings** (`/server/<server>`, Manage Server or bot owner): report channel, language, report on/off.
 - **Bot settings** (owner of the Discord application): token, client secret, public address, Leetify key and daily request budget.

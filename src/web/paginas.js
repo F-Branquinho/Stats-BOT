@@ -3,7 +3,7 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { IDIOMAS } = require('../i18n');
 const { definicoes } = require('../commands');
 const { tabela, porMes } = require('../leaderboard');
-const { membrosLigados, temPermissao } = require('../membros');
+const { temPermissao } = require('../membros');
 const { escolherVencedores, premiosPorJogador } = require('../report');
 const views = require('./views');
 const { TABELAS, ordemValida, paginaTabela, paginaPerfil } = require('./views-tabela');
@@ -70,8 +70,9 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
     }
 
     /** Linked players who are members of the server, by Steam id. */
-    async function jogadoresDoServidor(guild) {
-        const jogadores = await membrosLigados(guild, db.jogadoresLigados());
+    // Every linked player is in the tables (the stats are public; admins remove players with /remove)
+    function jogadoresLigados() {
+        const jogadores = db.jogadoresLigados();
         return new Map(jogadores.map((j) => [j.steam64_id, j]));
     }
 
@@ -84,7 +85,7 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
             const ordens = Object.fromEntries(TABELAS.map((t) => [t.param, ordemValida(t, req.query[t.param])]));
             const { ordem } = ordens;
 
-            const jogadores = await jogadoresDoServidor(guild);
+            const jogadores = jogadoresLigados();
             const linhas = tabela(db, [...jogadores.keys()], periodo).map((l) => {
                 const j = jogadores.get(l.steam64Id);
                 return { ...l, discordId: j.discord_id, nome: j.name ?? j.discord_id, avatar: j.avatar };
@@ -102,9 +103,8 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
             const guild = servidorVisivel(req);
             if (!guild) return semAcesso(res);
             const j = db.jogador(req.params.discordId);
-            const membro = j && (await membrosLigados(guild, [j])).length > 0;
-            if (!membro) {
-                return res.status(404).send(views.paginaErro("This player isn't linked or isn't in this server.", { estado: 'Not found', link: `/s/${guild.id}` }));
+            if (!j) {
+                return res.status(404).send(views.paginaErro("This player isn't linked.", { estado: 'Not found', link: `/s/${guild.id}` }));
             }
             const partidas = db.partidasDe([j.steam64_id], null, null);
             res.send(paginaPerfil({
@@ -148,7 +148,7 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
             erros,
             avisos: permissoesEmFalta(guild, atual.reportChannelId),
             guardado,
-            jogadores: (await jogadoresDoServidor(guild)).size,
+            jogadores: jogadoresLigados().size,
         });
     }
 

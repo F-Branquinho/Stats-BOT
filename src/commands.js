@@ -6,7 +6,6 @@ const { idioma, preencher, nomeDoMes } = require('./i18n');
 const { intervalo } = require('./periodos');
 const { tabela, ordenarPor, MIN_PARTIDAS_MVP } = require('./leaderboard');
 const { EMOJIS, escolherVencedores } = require('./report');
-const { membrosLigados } = require('./membros');
 
 // View channels, send messages, embed links
 const PERMISSOES_CONVITE = 19456;
@@ -44,6 +43,11 @@ const definicoes = [
         .setDescription('Add a Steam account to the table by its Steam64 ID')
         .addStringOption((o) => o.setName('steam64').setDescription('Steam64 ID (7656119…) or steamcommunity.com/profiles/… link').setRequired(true).setMaxLength(100))
         .addUserOption((o) => o.setName('user').setDescription('Whose account it is (defaults to you; others need Manage Server)')),
+    new SlashCommandBuilder()
+        .setName('remove')
+        .setDescription('Take a player off the table (yourself, or anyone with Manage Server)')
+        .addUserOption((o) => o.setName('user').setDescription('Who to remove (defaults to you)'))
+        .addStringOption((o) => o.setName('steam64').setDescription('Or the Steam64 ID / profile link to remove').setMaxLength(100)),
     new SlashCommandBuilder()
         .setName('table')
         .setDescription("Open this server's stats table"),
@@ -213,6 +217,27 @@ async function ligarPorComando({ db: bd, recolha: rc, leetify: lt = null, autorI
     return { ok: true, steam64Id, novas, estado: bd.jogadorPorSteam(steam64Id).leetify_status, movidoDe, leetify };
 }
 
+/**
+ * /remove: takes a player off the table, found by Discord user or by Steam64 ID.
+ * Anyone can remove themselves; removing someone else needs Manage Server.
+ * @returns {{ ok: true, discordId: string, steam64Id: string } | { ok: false, motivo: 'invalido' | 'sem_permissao' | 'nao_ligado' }}
+ */
+function removerPorComando({ db: bd, autorId, alvoId, texto, podeGerir }) {
+    let jogador;
+    if (texto) {
+        const steam64Id = lerSteam64(texto);
+        if (!steam64Id) return { ok: false, motivo: 'invalido' };
+        jogador = bd.jogadorPorSteam(steam64Id);
+    } else {
+        jogador = bd.jogador(alvoId ?? autorId);
+    }
+    if (!jogador) return { ok: false, motivo: 'nao_ligado' };
+    if (jogador.discord_id !== autorId && !podeGerir) return { ok: false, motivo: 'sem_permissao' };
+    bd.desligarJogador(jogador.discord_id);
+    console.log(`🗑️ ${jogador.discord_id} (Steam ${jogador.steam64_id}) removed with /remove (by ${autorId})`);
+    return { ok: true, discordId: jogador.discord_id, steam64Id: jogador.steam64_id };
+}
+
 /** The /add reply for a ligarPorComando result. */
 function respostaAdd(r, t, jogador) {
     if (!r.ok) return preencher(t.cmd.add[r.motivo], { jogador });
@@ -236,8 +261,9 @@ function definirBD(bd, rc = null, lt = null) {
     leetify = lt;
 }
 
-async function linhasDoServidor(guild, periodo) {
-    const jogadores = await membrosLigados(guild, db.jogadoresLigados());
+// Every linked player is in the tables (the stats are public; admins remove players with /remove)
+function linhasDoServidor(periodo) {
+    const jogadores = db.jogadoresLigados();
     const discordDe = new Map(jogadores.map((j) => [j.steam64_id, j.discord_id]));
     return { linhas: tabela(db, [...discordDe.keys()], periodo), mencao: (s) => `<@${discordDe.get(s)}>` };
 }
@@ -285,7 +311,7 @@ const COMANDOS = {
         const categoria = interaction.options.getString('category') ?? 'kills';
         const periodo = PERIODOS[interaction.options.getString('period') ?? 'month'];
         const nome = nomePeriodo(periodo, codigo);
-        const { linhas, mencao } = await linhasDoServidor(interaction.guild, periodo);
+        const { linhas, mencao } = linhasDoServidor(periodo);
         const content = linhas.length
             ? `${preencher(t.cmd.top, { categoria: t.cmd.categorias[categoria], periodo: nome })}\n`
                 + linhasTop(ordenarPor(linhas, CATEGORIAS[categoria].coluna), categoria, mencao)
@@ -295,9 +321,23 @@ const COMANDOS = {
 
     async mvp(interaction, t, codigo) {
         await interaction.deferReply();
-        const { linhas, mencao } = await linhasDoServidor(interaction.guild, 'mes');
+        const { linhas, mencao } = linhasDoServidor('mes');
         const content = mensagemMvp({ linhas, idioma: codigo, mencao, periodo: nomePeriodo('mes', codigo) });
         await interaction.editReply({ content, allowedMentions: SEM_PINGS });
+    },
+
+    async remove(interaction, t) {
+        const r = removerPorComando({
+            db,
+            autorId: interaction.user.id,
+            alvoId: interaction.options.getUser('user')?.id ?? null,
+            texto: interaction.options.getString('steam64'),
+            podeGerir: Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)),
+        });
+        const content = r.ok
+            ? preencher(t.cmd.remove.ok, { jogador: `<@${r.discordId}>`, steam: r.steam64Id })
+            : t.cmd.remove[r.motivo];
+        await interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: SEM_PINGS });
     },
 
     async table(interaction, t) {
@@ -328,5 +368,5 @@ async function tratarInteracao(interaction) {
 }
 
 module.exports = {
-    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, respostaAdd, respostaTable, mensagemMvp, urlConvite, registarComandos, definirBD, tratarInteracao,
+    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, removerPorComando, respostaAdd, respostaTable, mensagemMvp, urlConvite, registarComandos, definirBD, tratarInteracao,
 };

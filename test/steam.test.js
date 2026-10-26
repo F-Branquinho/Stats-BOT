@@ -66,3 +66,18 @@ test('return_to on another site → null', async () => {
 test('cancelled login (mode cancel) → null', async () => {
     assert.strictEqual(await verificar(query({ 'openid.mode': 'cancel' }), { fetch: async () => resposta(true), publicUrl: PUBLICO }), null);
 });
+
+test('identity different from claimed_id → null, without asking Steam', async () => {
+    let perguntou = false;
+    const fetch = async () => { perguntou = true; return resposta(true); };
+    const q = query({ 'openid.identity': 'https://steamcommunity.com/openid/id/76561190000000000' });
+    assert.strictEqual(await verificar(q, { fetch, publicUrl: PUBLICO }), null);
+    assert.strictEqual(perguntou, false);
+});
+
+test('claimed_id or return_to not among the signed fields → null', async () => {
+    for (const assinados of ['signed,op_endpoint,identity,return_to,response_nonce,assoc_handle', 'signed,op_endpoint,claimed_id,identity,response_nonce,assoc_handle']) {
+        const q = query({ 'openid.signed': assinados });
+        assert.strictEqual(await verificar(q, { fetch: async () => resposta(true), publicUrl: PUBLICO }), null, assinados);
+    }
+});

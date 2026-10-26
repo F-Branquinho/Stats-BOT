@@ -10,7 +10,7 @@ const linha = {
 };
 
 test('command names', () => {
-    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'table', 'stats', 'top', 'mvp', 'stats-help']);
+    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'remove', 'table', 'stats', 'top', 'mvp', 'stats-help']);
 });
 
 test('/add takes a required steam64 and an optional user', () => {
@@ -250,4 +250,48 @@ test('mensagemMvp: a long race still fits in one Discord message', () => {
     const linhas = Array.from({ length: 30 }, (_, i) => corrida(i + 1, i >= 12 ? { elegivel: false, partidas: 4 } : {}));
     const texto = mensagemMvp({ linhas, idioma: 'pt', mencao: (s) => `<@1234567890123456${String(s).slice(1).padStart(2, '0')}>`, periodo: 'outubro de 2026' });
     assert.ok(texto.length <= 2000, String(texto.length));
+});
+
+test('/remove takes an optional user or steam64', () => {
+    const remove = definicoes.find((c) => c.name === 'remove');
+    assert.deepStrictEqual(remove.options.map((o) => [o.name, Boolean(o.required)]), [['user', false], ['steam64', false]]);
+});
+
+test('removerPorComando: anyone can remove themselves', () => {
+    const { removerPorComando } = require('../src/commands');
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd1', steam64Id: '76561198053742791', nome: 'Ana' });
+    assert.deepStrictEqual(removerPorComando({ db, autorId: 'd1', alvoId: 'd1', texto: null, podeGerir: false }), { ok: true, discordId: 'd1', steam64Id: '76561198053742791' });
+    assert.strictEqual(db.jogador('d1'), undefined);
+});
+
+test('removerPorComando: removing someone else needs Manage Server', () => {
+    const { removerPorComando } = require('../src/commands');
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd2', steam64Id: '76561198053742791', nome: 'Rui' });
+    assert.deepStrictEqual(removerPorComando({ db, autorId: 'd1', alvoId: 'd2', texto: null, podeGerir: false }), { ok: false, motivo: 'sem_permissao' });
+    assert.ok(db.jogador('d2'));
+    assert.strictEqual(removerPorComando({ db, autorId: 'd1', alvoId: 'd2', texto: null, podeGerir: true }).ok, true);
+    assert.strictEqual(db.jogador('d2'), undefined);
+});
+
+test('removerPorComando: by Steam64 ID (admins), and the not-linked and invalid cases', () => {
+    const { removerPorComando } = require('../src/commands');
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd2', steam64Id: '76561198053742791', nome: 'Rui' });
+    assert.deepStrictEqual(removerPorComando({ db, autorId: 'd1', alvoId: null, texto: 'abc', podeGerir: true }), { ok: false, motivo: 'invalido' });
+    assert.deepStrictEqual(removerPorComando({ db, autorId: 'd1', alvoId: null, texto: '76561198094900436', podeGerir: true }), { ok: false, motivo: 'nao_ligado' });
+    assert.deepStrictEqual(removerPorComando({ db, autorId: 'd1', alvoId: null, texto: '76561198053742791', podeGerir: false }), { ok: false, motivo: 'sem_permissao' });
+    assert.strictEqual(removerPorComando({ db, autorId: 'd1', alvoId: null, texto: 'https://steamcommunity.com/profiles/76561198053742791', podeGerir: true }).ok, true);
+    assert.deepStrictEqual(removerPorComando({ db, autorId: 'd3', alvoId: 'd3', texto: null, podeGerir: false }), { ok: false, motivo: 'nao_ligado' });
+});
+
+test('every /remove reply exists in Portuguese and English', () => {
+    const { IDIOMAS } = require('../src/i18n');
+    for (const [codigo, t] of Object.entries(IDIOMAS)) {
+        for (const chave of ['ok', 'invalido', 'sem_permissao', 'nao_ligado']) {
+            assert.ok(typeof t.cmd.remove?.[chave] === 'string' && t.cmd.remove[chave].length > 0, `${codigo}.cmd.remove.${chave}`);
+        }
+        assert.match(t.cmd.ajuda, /\/remove/, `${codigo} help lists /remove`);
+    }
 });

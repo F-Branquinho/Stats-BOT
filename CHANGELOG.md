@@ -2,6 +2,15 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.9.0
+
+- The table no longer asks Discord who is a member of the server, which made it take ~5 s to load every 10 minutes. It now shows every linked player and loads right away; the same goes for `/top`, `/mvp` and the monthly report.
+- `/remove`: takes a player off the table. Anyone can remove themselves; removing someone else (by user or Steam64 ID) requires Manage Server.
+- Security:
+  - A malformed cookie (e.g. set by another site on the same domain) no longer breaks the whole site with an error 500.
+  - HSTS header when the site is on HTTPS.
+  - Steam sign-in also checks that `identity` matches `claimed_id` and that the fields it relies on are signed.
+
 ## v0.8.0
 
 - `/table`: a button that opens this server's table on the website.

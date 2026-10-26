@@ -5,7 +5,7 @@ const { abrirBD } = require('../src/db');
 const paginas = require('../src/web/paginas');
 
 // A website with one or more fake servers, nobody logged in
-async function site(guildIds = ['g1']) {
+async function site(guildIds = ['g1'], { discordEmBaixo = false } = {}) {
     const db = abrirBD(':memory:');
     db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
     db.guardarPartida(
@@ -14,7 +14,7 @@ async function site(guildIds = ['g1']) {
     );
     const guilds = new Map(guildIds.map((id) => [id, {
         id, name: `Server ${id}`, icon: null, channels: { cache: new Map() },
-        members: { fetch: async ({ user }) => ({ id: user }) },
+        members: { fetch: async ({ user }) => { if (discordEmBaixo) throw new Error('Discord unreachable'); return { id: user }; } },
     }]));
     const cliente = () => ({ user: { id: 'bot', username: 'Stats-bot', avatar: null }, guilds: { cache: guilds } });
     const app = express();
@@ -115,6 +115,20 @@ test('the table page honours each table sort and ignores unknown columns', async
         const html = await (await fetch(`${url}/s/g1?ordem=nope&u=heDano&k=k5&m=reacao`)).text();
         assert.match(html, /ordem=pontos&amp;u=heDano&amp;k=k5&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
         assert.match(html, /class="ativo">Points/);
+    } finally {
+        fechar();
+    }
+});
+
+test('the table makes no Discord calls: it works even if Discord is unreachable', async () => {
+    // A server id no other test used, so nothing is cached from before
+    const { url, fechar } = await site(['g-sem-discord'], { discordEmBaixo: true });
+    try {
+        const tabela = await fetch(`${url}/s/g-sem-discord`);
+        assert.strictEqual(tabela.status, 200);
+        assert.match(await tabela.text(), /Ana/);
+        const perfil = await fetch(`${url}/s/g-sem-discord/p/d1`);
+        assert.strictEqual(perfil.status, 200);
     } finally {
         fechar();
     }

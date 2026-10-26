@@ -29,9 +29,26 @@ function lerCookies(req) {
     const cookies = {};
     for (const parte of (req.headers.cookie ?? '').split(';')) {
         const i = parte.indexOf('=');
-        if (i > 0) cookies[parte.slice(0, i).trim()] = decodeURIComponent(parte.slice(i + 1).trim());
+        if (i <= 0) continue;
+        // Other sites on the same parent domain can set cookies we can't decode: skip those
+        try {
+            cookies[parte.slice(0, i).trim()] = decodeURIComponent(parte.slice(i + 1).trim());
+        } catch {
+            // ignore
+        }
     }
     return cookies;
+}
+
+/** Security headers for every response; HSTS only when the site is served over HTTPS. */
+function cabecalhosSeguranca(publicUrl) {
+    const cabecalhos = {
+        'Content-Security-Policy': "default-src 'none'; img-src https://cdn.discordapp.com; style-src 'unsafe-inline'; form-action 'self' https://steamcommunity.com; frame-ancestors 'none'",
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'same-origin',
+    };
+    if (publicUrl?.startsWith('https://')) cabecalhos['Strict-Transport-Security'] = 'max-age=31536000';
+    return cabecalhos;
 }
 
 function definirCookie(res, nome, valor, maxAgeMs) {
@@ -130,11 +147,7 @@ function iniciarPainel(bot, { db, recolha }) {
 
     app.disable('x-powered-by');
     app.use((req, res, next) => {
-        res.set({
-            'Content-Security-Policy': "default-src 'none'; img-src https://cdn.discordapp.com; style-src 'unsafe-inline'; form-action 'self' https://steamcommunity.com; frame-ancestors 'none'",
-            'X-Content-Type-Options': 'nosniff',
-            'Referrer-Policy': 'same-origin',
-        });
+        res.set(cabecalhosSeguranca(settings.obter().publicUrl));
         next();
     });
     app.use(express.urlencoded({ extended: false, limit: '20kb' }));
@@ -512,4 +525,4 @@ function iniciarPainel(bot, { db, recolha }) {
     });
 }
 
-module.exports = { iniciarPainel, caminhoLocal };
+module.exports = { iniciarPainel, caminhoLocal, lerCookies, cabecalhosSeguranca };

@@ -62,3 +62,16 @@ test('a failed send is not marked, so it is retried', async () => {
     }
     assert.strictEqual(db.relatorioEnviado('g1', '2026-10'), false);
 });
+
+test('the report makes no member lookups: it is sent even if Discord member fetches fail', async () => {
+    const { db, client, enviadas } = preparar();
+    // Move the server to an id no other test used, so nothing is cached from before
+    const guild = client.guilds.cache.get('g1');
+    guild.id = 'g-sem-discord';
+    guild.members.fetch = async () => { throw new Error('rate limited'); };
+    client.guilds.cache = new Map([['g-sem-discord', guild]]);
+    db.guardarServidor('g-sem-discord', { reportChannelId: 'c1', language: 'pt', reportEnabled: true }, CONFIGURADO);
+    await enviarRelatorios({ client, db, agora: AGORA });
+    assert.strictEqual(enviadas.length, 1);
+    assert.match(enviadas[0].content, /<@d1>/);
+});

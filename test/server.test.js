@@ -12,3 +12,17 @@ test('caminhoLocal refuses other sites', () => {
         assert.strictEqual(caminhoLocal(mau), null, String(mau));
     }
 });
+
+test('lerCookies ignores a malformed cookie instead of throwing', () => {
+    const { lerCookies } = require('../src/web/server');
+    const cookies = lerCookies({ headers: { cookie: 'outro=%E0%A4%A; sessao=abc' } });
+    assert.strictEqual(cookies.sessao, 'abc');
+    assert.strictEqual(cookies.outro, undefined);
+});
+
+test('cabecalhosSeguranca adds HSTS when the site is on HTTPS', () => {
+    const { cabecalhosSeguranca } = require('../src/web/server');
+    assert.match(cabecalhosSeguranca('https://stats.example.com')['Strict-Transport-Security'], /max-age=\d+/);
+    assert.strictEqual(cabecalhosSeguranca('http://192.168.1.10:3000')['Strict-Transport-Security'], undefined);
+    assert.match(cabecalhosSeguranca(null)['Content-Security-Policy'], /default-src 'none'/);
+});

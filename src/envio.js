@@ -2,16 +2,15 @@ const { relatoriosPendentes } = require('./scheduler');
 const { agoraLisboa, mesAnterior, intervaloDoMes } = require('./periodos');
 const { tabelaEntre } = require('./leaderboard');
 const { escolherVencedores, mensagemRelatorio } = require('./report');
-const { membrosLigados } = require('./membros');
 
 /** Posts last month's report in every server that still needs it. */
-async function enviarRelatorios({ client, db, agora = new Date(), membros = membrosLigados }) {
+async function enviarRelatorios({ client, db, agora = new Date() }) {
     const mes = mesAnterior(agoraLisboa(agora).mes);
     for (const guildId of relatoriosPendentes(db, [...client.guilds.cache.keys()], agora)) {
         const guild = client.guilds.cache.get(guildId);
         const cfg = db.servidor(guildId);
         try {
-            const jogadores = await membros(guild, db.jogadoresLigados());
+            const jogadores = db.jogadoresLigados();
             const discordDe = new Map(jogadores.map((j) => [j.steam64_id, j.discord_id]));
             const { desde, ate } = intervaloDoMes(mes);
             const vencedores = escolherVencedores(tabelaEntre(db, [...discordDe.keys()], desde, ate));
