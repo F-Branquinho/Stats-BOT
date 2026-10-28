@@ -1,4 +1,5 @@
 const { ErroLimite, ErroOrcamento, ErroPerfil } = require('./leetify');
+const { converterPartida } = require('./faceit');
 
 const INTERVALO_MS = 2000;
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -10,10 +11,11 @@ function antigo(iso, agora) {
 }
 
 /**
- * Fetches new matches of every linked player from Leetify and stores them.
+ * Fetches new matches of every linked player from Leetify, and from FACEIT when there is a FACEIT client
+ * (for the FACEIT matches Leetify doesn't have), and stores them.
  * `esperar` and `agora` are injectable for tests.
  */
-function criarRecolha({ db, leetify, esperar = dormir, agora = () => new Date() }) {
+function criarRecolha({ db, leetify, faceit = null, esperar = dormir, agora = () => new Date() }) {
     let ultimaRecolha = null;
     let emPausaAte = null;
     let orcamentoEsgotado = false;
@@ -29,8 +31,50 @@ function criarRecolha({ db, leetify, esperar = dormir, agora = () => new Date() 
         };
     }
 
-    /** Fetches one player's matches (and their profile once a day). Returns how many were new. */
-    async function recolher(jogador, pedir) {
+    /**
+     * FACEIT matches of one player that aren't stored yet (Leetify's version wins when it has one), plus their
+     * FACEIT level and ELO once a day. Errors are logged and never stop the run. Returns how many were new.
+     */
+    async function recolherFaceit(jogador, pedir, statsDaRecolha) {
+        if (!faceit) return 0;
+        const s = jogador.steam64_id;
+        try {
+            let faceitId = jogador.faceit_id;
+            if (faceitId === null || faceitId === undefined || antigo(jogador.faceit_at, agora())) {
+                const quando = agora().toISOString();
+                const conta = await pedir(() => faceit.jogador(s));
+                faceitId = conta?.playerId ?? '';
+                db.marcarFaceit(s, faceitId, quando);
+                if (conta) {
+                    db.guardarFaceitRank(s, conta);
+                    db.guardarRank(s, quando, { faceitElo: conta.elo });
+                }
+            }
+            if (!faceitId) return 0;
+
+            let novas = 0;
+            for (const item of await pedir(() => faceit.historico(faceitId))) {
+                if (db.temJogadorNaPartidaFaceit(item.match_id, s)) continue;
+                // Friends in the same match share one stats request per run
+                if (!statsDaRecolha.has(item.match_id)) statsDaRecolha.set(item.match_id, await pedir(() => faceit.stats(item.match_id)));
+                const convertida = converterPartida(item, statsDaRecolha.get(item.match_id), faceitId, s);
+                if (convertida && db.guardarPartida(convertida.match, convertida.stats)) novas++;
+            }
+            return novas;
+        } catch (error) {
+            console.error(`❌ Could not fetch FACEIT matches of ${s}:`, error.message);
+            return 0;
+        }
+    }
+
+    /** Leetify, then FACEIT, for one player. `saltarLeetify` when their Leetify profile was missing less than a day ago. */
+    async function recolher(jogador, pedir, { saltarLeetify = false, statsDaRecolha = new Map() } = {}) {
+        const novas = saltarLeetify ? 0 : await recolherLeetify(jogador, pedir);
+        return novas + await recolherFaceit(jogador, pedir, statsDaRecolha);
+    }
+
+    /** Fetches one player's Leetify matches (and their profile once a day). Returns how many were new. */
+    async function recolherLeetify(jogador, pedir) {
         const s = jogador.steam64_id;
         try {
             const partidas = await pedir(() => leetify.partidas(s));
@@ -67,11 +111,13 @@ function criarRecolha({ db, leetify, esperar = dormir, agora = () => new Date() 
         if (emPausaAte && agora() < new Date(emPausaAte)) return { ...resultado, parado: 'limite' };
 
         const pedir = ritmo();
+        const statsDaRecolha = new Map();
         for (const jogador of db.jogadoresLigados()) {
-            // Missing or private profiles are only retried once a day
-            if (jogador.leetify_status !== 'ok' && !antigo(jogador.last_fetched_at, agora())) continue;
+            // Missing or private Leetify profiles are only retried once a day (FACEIT still runs)
+            const saltarLeetify = jogador.leetify_status !== 'ok' && !antigo(jogador.last_fetched_at, agora());
+            if (saltarLeetify && !faceit) continue;
             try {
-                resultado.novas += await recolher(jogador, pedir);
+                resultado.novas += await recolher(jogador, pedir, { saltarLeetify, statsDaRecolha });
                 resultado.jogadores++;
             } catch (error) {
                 if (error instanceof ErroLimite) {

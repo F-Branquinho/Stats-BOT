@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS api_usage (
 );
 `;
 
-const VERSAO = 4;
+const VERSAO = 5;
 
 // Columns added after v1, in this order, by migrar() (also on a new database, so both end up the same).
 // Matches stored before a column existed get it filled the next time Leetify sends them.
@@ -123,6 +123,10 @@ function acrescentarColunas(db, tabela, colunas) {
 function migrar(db) {
     acrescentarColunas(db, 'player_matches', COLUNAS_TARDIAS);
     acrescentarColunas(db, 'player_profile', COLUNAS_PERFIL);
+    // v5: FACEIT as a second source. source_match_id is the match's id on its platform (FACEIT's "1-…"),
+    // so the same match from Leetify and from FACEIT is stored once; the player's FACEIT account is cached.
+    acrescentarColunas(db, 'matches', { source_match_id: 'TEXT' });
+    acrescentarColunas(db, 'players', { faceit_id: 'TEXT', faceit_at: 'TEXT' });
     db.pragma(`user_version = ${VERSAO}`);
 }
 
@@ -186,15 +190,26 @@ function abrirBD(ficheiro) {
             VALUES (@discordId, @steam64Id, @nome, @avatar, @agora)
             ON CONFLICT (discord_id) DO UPDATE SET steam64_id = excluded.steam64_id, name = excluded.name,
                 avatar = excluded.avatar, linked_at = excluded.linked_at, leetify_status = 'ok',
-                last_fetched_at = NULL, profile_at = NULL`),
+                last_fetched_at = NULL, profile_at = NULL, faceit_id = NULL, faceit_at = NULL`),
         desligar: db.prepare('DELETE FROM players WHERE discord_id = ?'),
         estado: db.prepare('UPDATE players SET leetify_status = ? WHERE steam64_id = ?'),
         recolha: db.prepare('UPDATE players SET last_fetched_at = ? WHERE steam64_id = ?'),
         perfilRecolhido: db.prepare('UPDATE players SET profile_at = ? WHERE steam64_id = ?'),
         // Bans often land days after a match: once Leetify flags it, it stays flagged
-        partida: db.prepare(`INSERT INTO matches (id, finished_at, map_name, data_source, has_banned_player)
-            VALUES (@id, @finished_at, @map_name, @data_source, @has_banned_player)
-            ON CONFLICT (id) DO UPDATE SET has_banned_player = MAX(has_banned_player, excluded.has_banned_player)`),
+        partida: db.prepare(`INSERT INTO matches (id, finished_at, map_name, data_source, has_banned_player, source_match_id)
+            VALUES (@id, @finished_at, @map_name, @data_source, @has_banned_player, @source_match_id)
+            ON CONFLICT (id) DO UPDATE SET has_banned_player = MAX(has_banned_player, excluded.has_banned_player),
+                source_match_id = COALESCE(source_match_id, excluded.source_match_id)`),
+        // A FACEIT-only match is stored with its FACEIT id as id; Leetify's version has its own id
+        leetifyTem: db.prepare('SELECT 1 FROM matches WHERE source_match_id = ? AND id <> ?'),
+        temFonte: db.prepare('SELECT 1 FROM matches WHERE source_match_id = ? OR id = ?'),
+        jogadorNaPartidaFaceit: db.prepare(`SELECT 1 FROM player_matches pm JOIN matches m ON m.id = pm.match_id
+            WHERE (m.id = ? OR m.source_match_id = ?) AND pm.steam64_id = ?`),
+        apagarJogadoresPartida: db.prepare('DELETE FROM player_matches WHERE match_id = ?'),
+        apagarPartida: db.prepare('DELETE FROM matches WHERE id = ?'),
+        marcarFaceit: db.prepare('UPDATE players SET faceit_id = ?, faceit_at = ? WHERE steam64_id = ?'),
+        guardarFaceitRank: db.prepare(`INSERT INTO player_profile (steam64_id, faceit, faceit_elo, updated_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT (steam64_id) DO UPDATE SET faceit = excluded.faceit, faceit_elo = excluded.faceit_elo`),
         descontar: db.prepare('UPDATE player_matches SET counted = 0 WHERE match_id = ?'),
         banida: db.prepare('SELECT has_banned_player FROM matches WHERE id = ?').pluck(),
         jogadorPartida: db.prepare(`INSERT OR IGNORE INTO player_matches (${COLUNAS_PARTIDA.join(', ')})
@@ -207,7 +222,8 @@ function abrirBD(ficheiro) {
         guardarPerfil: db.prepare(`INSERT INTO player_profile (steam64_id, aim, utility, positioning, premier, faceit, faceit_elo, clutch, opening, updated_at)
             VALUES (@steam64Id, @aim, @utility, @positioning, @premier, @faceit, @faceitElo, @clutch, @opening, @agora)
             ON CONFLICT (steam64_id) DO UPDATE SET aim = excluded.aim, utility = excluded.utility,
-                positioning = excluded.positioning, premier = excluded.premier, faceit = excluded.faceit, faceit_elo = excluded.faceit_elo,
+                positioning = excluded.positioning, premier = excluded.premier,
+                faceit = COALESCE(excluded.faceit, faceit), faceit_elo = COALESCE(excluded.faceit_elo, faceit_elo),
                 clutch = excluded.clutch, opening = excluded.opening, updated_at = excluded.updated_at`),
         servidor: db.prepare('SELECT * FROM guilds WHERE guild_id = ?'),
         guardarServidor: db.prepare(`INSERT INTO guilds VALUES (@guildId, @reportChannelId, @language, @reportEnabled, @agora)
@@ -219,7 +235,8 @@ function abrirBD(ficheiro) {
         contarPedido: db.prepare(`INSERT INTO api_usage VALUES (?, 1)
             ON CONFLICT (day) DO UPDATE SET requests = requests + 1`),
         guardarRank: db.prepare(`INSERT INTO rank_history VALUES (@steam64Id, @dia, @em, @premier, @faceitElo)
-            ON CONFLICT (steam64_id, day) DO UPDATE SET em = excluded.em, premier = excluded.premier, faceit_elo = excluded.faceit_elo`),
+            ON CONFLICT (steam64_id, day) DO UPDATE SET em = excluded.em,
+                premier = COALESCE(excluded.premier, premier), faceit_elo = COALESCE(excluded.faceit_elo, faceit_elo)`),
         rankAntes: db.prepare('SELECT * FROM rank_history WHERE steam64_id = ? AND em < ? ORDER BY em DESC LIMIT 1'),
         ranksDentro: db.prepare(`SELECT * FROM rank_history WHERE steam64_id = ?
             AND (? IS NULL OR em >= ?) AND (? IS NULL OR em < ?) ORDER BY em`),
@@ -237,6 +254,14 @@ function abrirBD(ficheiro) {
 
     const guardarPartida = db.transaction((match, s) => {
         if (!match.id || !match.finished_at || !s.steam64_id) return false;
+        const fonte = match.data_source_match_id ?? null;
+        const soFaceit = Boolean(fonte) && match.id === fonte;
+        // Leetify's version of a FACEIT match has more stats: it wins over the FACEIT-only one
+        if (soFaceit && q.leetifyTem.get(fonte, fonte)) return false;
+        if (fonte && !soFaceit) {
+            q.apagarJogadoresPartida.run(fonte);
+            q.apagarPartida.run(fonte);
+        }
         const rating = hltv1(s);
         const res = resultado(s);
         if (match.has_banned_player) q.descontar.run(match.id);
@@ -246,6 +271,7 @@ function abrirBD(ficheiro) {
             map_name: match.map_name ?? null,
             data_source: match.data_source ?? null,
             has_banned_player: match.has_banned_player ? 1 : 0,
+            source_match_id: fonte,
         });
         const banida = q.banida.get(match.id) === 1;
         const tardias = { match_id: match.id, steam64_id: s.steam64_id, ...colunasTardias(s) };
@@ -373,6 +399,13 @@ function abrirBD(ficheiro) {
             q.guardarRank.run({ steam64Id, dia: agoraLisboa(new Date(quando)).data, em: quando, premier, faceitElo });
         },
         ranksEntre,
+        /** Whether a FACEIT match (by its FACEIT id) is already stored, from either source. */
+        temPartidaFaceit: (faceitMatchId) => Boolean(q.temFonte.get(faceitMatchId, faceitMatchId)),
+        /** Whether this player's row of a FACEIT match is already stored, from either source. */
+        temJogadorNaPartidaFaceit: (faceitMatchId, steam64Id) => Boolean(q.jogadorNaPartidaFaceit.get(faceitMatchId, faceitMatchId, steam64Id)),
+        /** The player's FACEIT account id ('' when they have none), and when it was looked up. */
+        marcarFaceit: (steam64Id, faceitId, quando) => q.marcarFaceit.run(faceitId, quando, steam64Id),
+        guardarFaceitRank: (steam64Id, { nivel, elo }) => q.guardarFaceitRank.run(steam64Id, nivel ?? null, elo ?? null, new Date().toISOString()),
     };
 }
 

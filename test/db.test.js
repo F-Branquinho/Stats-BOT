@@ -173,7 +173,7 @@ test('an existing database gets the HE columns, and old matches are filled in wh
     const novo = db.guardarPartida(premier, { ...stats(premier, 's1'), he_thrown: 10, he_foes_damage_avg: 2.4, he_friends_damage_avg: 0 });
     assert.strictEqual(novo, false);
     assert.strictEqual(db.partidasDe(['s1'], null, null)[0].he_foes_damage, 24);
-    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 4);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 5);
     db.fechar();
 });
 
@@ -209,7 +209,7 @@ test('a v2 database gets the v3 columns, filled in when Leetify sends the match 
     const [p] = db.partidasDe(['s1'], null, null);
     assert.strictEqual(p.total_damage, 1974);
     assert.strictEqual(p.mvps, 2);
-    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 4);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 5);
     db.fechar();
 });
 
@@ -259,4 +259,79 @@ test('rank history: one snapshot per day, with the start and end of a period', (
     assert.deepStrictEqual(outubro.get('s2'), { inicio: { premier: 9000, faceitElo: null }, fim: { premier: 9000, faceitElo: null } });
     assert.strictEqual(db.ranksEntre(['s1'], '2026-10-06T00:00:00.000Z', '2026-10-07T00:00:00.000Z').get('s1').fim.premier, 15600);
     assert.strictEqual(db.ranksEntre(['s3'], null, null).get('s3'), undefined);
+});
+
+const faceitHistorico = require('./fixtures/faceit-historico.json');
+const faceitStats = require('./fixtures/faceit-stats.json');
+const { converterPartida } = require('../src/faceit');
+
+function versaoFaceit(steam64Id = 's1') {
+    return converterPartida(faceitHistorico.items[0], faceitStats, '62cbcad9-3f4b-4788-ac14-291659b28a71', steam64Id);
+}
+function versaoLeetify(steam64Id = 's1') {
+    const f = versaoFaceit(steam64Id);
+    return { match: { ...f.match, id: 'uuid-da-leetify' }, stats: { ...f.stats, leetify_rating: 0.02, flashbang_hit_friend: 3 } };
+}
+
+test('a FACEIT-only match is stored and counted', () => {
+    const db = abrirBD(':memory:');
+    const { match, stats: s } = versaoFaceit();
+    assert.strictEqual(db.guardarPartida(match, s), true);
+    const [p] = db.partidasDe(['s1'], null, null);
+    assert.strictEqual(p.data_source, 'faceit');
+    assert.strictEqual(p.kills, 17);
+});
+
+test('when Leetify later has the same FACEIT match, its richer version replaces the FACEIT one', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPartida(versaoFaceit().match, versaoFaceit().stats);
+    db.guardarPartida(versaoFaceit('s2').match, versaoFaceit('s2').stats);
+    assert.strictEqual(db.guardarPartida(versaoLeetify().match, versaoLeetify().stats), true);
+    const partidas = db.partidasDe(['s1', 's2'], null, null);
+    assert.deepStrictEqual(partidas.map((p) => p.match_id), ['uuid-da-leetify']);
+    assert.strictEqual(partidas[0].leetify_rating, 0.02);
+    assert.strictEqual(db.contarPartidas(), 1);
+});
+
+test('a FACEIT match Leetify already has is skipped', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPartida(versaoLeetify().match, versaoLeetify().stats);
+    assert.strictEqual(db.guardarPartida(versaoFaceit().match, versaoFaceit().stats), false);
+    assert.strictEqual(db.contarPartidas(), 1);
+    assert.strictEqual(db.temPartidaFaceit('1-d573d1e9-0bc0-4f69-89a2-d2c4f1397e9d'), true);
+    assert.strictEqual(db.temPartidaFaceit('1-outra'), false);
+});
+
+test('the FACEIT account of a player is remembered (empty string: no account)', () => {
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
+    db.marcarFaceit('s1', 'fid-1', '2026-10-28T20:00:00.000Z');
+    assert.strictEqual(db.jogador('d1').faceit_id, 'fid-1');
+    assert.strictEqual(db.jogador('d1').faceit_at, '2026-10-28T20:00:00.000Z');
+    db.marcarFaceit('s1', '', '2026-10-29T20:00:00.000Z');
+    assert.strictEqual(db.jogador('d1').faceit_id, '');
+});
+
+test('guardarFaceitRank sets the FACEIT level and ELO, also without a Leetify profile', () => {
+    const db = abrirBD(':memory:');
+    db.guardarFaceitRank('s1', { nivel: 10, elo: 2018 });
+    assert.deepStrictEqual([db.perfil('s1').faceit, db.perfil('s1').faceit_elo], [10, 2018]);
+    db.guardarPerfil('s1', { rating: { aim: 80 }, ranks: { premier: 23940, faceit: 9, faceit_elo: null } });
+    // Leetify's missing ELO doesn't wipe FACEIT's
+    assert.strictEqual(db.perfil('s1').faceit_elo, 2018);
+});
+
+test('a later rank snapshot on the same day fills in what the first one lacked', () => {
+    const db = abrirBD(':memory:');
+    db.guardarRank('s1', '2026-10-28T20:00:00.000Z', { premier: 23940, faceitElo: null });
+    db.guardarRank('s1', '2026-10-28T20:00:05.000Z', { premier: null, faceitElo: 2018 });
+    assert.deepStrictEqual(db.ranksEntre(['s1'], null, null).get('s1').fim, { premier: 23940, faceitElo: 2018 });
+});
+
+test('linking a different Steam account forgets the old FACEIT account', () => {
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
+    db.marcarFaceit('s1', 'fid-1', '2026-10-28T20:00:00.000Z');
+    db.ligarJogador({ discordId: 'd1', steam64Id: 's2', nome: 'Ana' });
+    assert.strictEqual(db.jogador('d1').faceit_id, null);
 });

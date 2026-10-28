@@ -1,0 +1,97 @@
+{
+  "rounds": [
+    {
+      "best_of": "1",
+      "match_id": "1-d573d1e9-0bc0-4f69-89a2-d2c4f1397e9d",
+      "round_stats": {
+        "Map": "de_dust2",
+        "Rounds": "24",
+        "Score": "11 / 13",
+        "Winner": "ed8d1f6f-0861-4462-9fa0-636a352a97ce",
+        "Region": "EU"
+      },
+      "teams": [
+        {
+          "team_id": "ede7ee85-936c-4ca4-ad05-7ba912af540c",
+          "team_stats": {
+            "Second Half Score": "5",
+            "Team Headshots": "7.8",
+            "Overtime score": "0",
+            "First Half Score": "6",
+            "Team": "team_kNWTANK",
+            "Team Win": "0",
+            "Final Score": "11"
+          },
+          "players": [
+            {
+              "player_id": "62cbcad9-3f4b-4788-ac14-291659b28a71",
+              "nickname": "FriqzZ",
+              "player_stats": {
+                "Knife Kills": "0",
+                "Match Entry Rate": "0.21",
+                "Quadro Kills": "0",
+                "Pistol Kills": "6",
+                "Match 1v1 Win Rate": "1",
+                "1v2Wins": "0",
+                "Zeus Kills": "0",
+                "Utility Damage Success Rate per Match": "8.67",
+                "Headshots %": "65",
+                "Utility Successes": "2",
+                "Utility Damage per Round in a Match": "2.17",
+                "ADR": "84.9",
+                "Double Kills": "4",
+                "1v1Wins": "1",
+                "Match Entry Success Rate": "0.4",
+                "Enemies Flashed per Round in a Match": "0.25",
+                "Flash Successes": "5",
+                "Result": "0",
+                "Penta Kills": "0",
+                "Enemies Flashed": "6",
+                "First Kills": "2",
+                "Flash Count": "11",
+                "Utility Damage": "52",
+                "Assists": "5",
+                "Utility Success Rate per Match": "0.33",
+                "K/D Ratio": "1",
+                "Triple Kills": "1",
+                "Deaths": "17",
+                "Sniper Kills": "1",
+                "MVPs": "3",
+                "Kills": "17",
+                "Flash Success Rate per Match": "0.45",
+                "Utility Usage per Round": "0.25",
+                "Sniper Kill Rate per Round": "0.04",
+                "Utility Enemies": "2",
+                "Headshots": "11",
+                "K/R Ratio": "0.71",
+                "Match 1v2 Win Rate": "0",
+                "Utility Count": "6",
+                "1v1Count": "1",
+                "Entry Count": "5",
+                "Flashes per Round in a Match": "0.46",
+                "Clutch Kills": "2",
+                "Damage": "2038",
+                "Sniper Kill Rate per Match": "0.06",
+                "Entry Wins": "2",
+                "1v2Count": "0"
+              }
+            }
+          ]
+        },
+        {
+          "team_id": "ed8d1f6f-0861-4462-9fa0-636a352a97ce",
+          "team_stats": {
+            "Team Headshots": "5.8",
+            "Overtime score": "0",
+            "First Half Score": "6",
+            "Second Half Score": "7",
+            "Final Score": "13",
+            "Team": "team_Ajbe",
+            "Team Win": "1"
+          },
+          "players": []
+        }
+      ]
+    }
+  ]
+}
