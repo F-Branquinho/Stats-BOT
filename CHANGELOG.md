@@ -2,6 +2,13 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.11.1
+
+- `/refresh` (Manage Server): fetches everyone's new matches from Leetify and FACEIT right away, at any time of day, and says how many were new.
+- **Collect now** button in Bot settings, which does the same from the website.
+- Saving a FACEIT key (setup page or Bot settings) starts a collection right away, instead of waiting for the 16:00–04:00 window.
+- `/health` says whether FACEIT is on.
+
 ## v0.11.0
 
 - **FACEIT as a second source.** With a FACEIT API key (setup page, Bot settings or `FACEIT_API_KEY`), the bot also fetches each linked player's last 20 FACEIT CS2 matches, for the ones Leetify doesn't have (Leetify only gets FACEIT matches when the player linked FACEIT on Leetify).

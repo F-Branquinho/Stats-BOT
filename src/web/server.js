@@ -166,6 +166,7 @@ function iniciarPainel(bot, { db, recolha }) {
             `leetify requests today: ${db.pedidosHoje(agoraLisboa().data)}/${settings.obter().orcamentoDiario}${r.orcamentoEsgotado ? ' (budget reached)' : ''}`,
         ];
         if (r.emPausaAte) linhas.push(`rate limited until: ${r.emPausaAte}`);
+        linhas.push(`faceit: ${settings.obter().faceitKey ? 'on' : 'off'}`);
         res.status(ligado ? 200 : 503).type('text').send(linhas.join('\n'));
     });
 
@@ -258,6 +259,7 @@ function iniciarPainel(bot, { db, recolha }) {
                 ...(faceitKey && { faceitKey }),
             });
             settings.apagarCodigoSetup();
+            if (faceitKey) recolherAgora('FACEIT key set on the setup page');
             bot.estado.recuperacao = false;
             console.log(`⚙ Setup complete for ${aplicacao.name}. Website: ${publicUrl}`);
             res.send(views.paginaSetupConcluido({
@@ -440,9 +442,14 @@ function iniciarPainel(bot, { db, recolha }) {
         res.redirect('/link');
     });
 
+    function recolherAgora(motivo) {
+        console.log(`🔄 Collection started (${motivo})`);
+        recolha.recolherTudo().catch((error) => console.error('❌ Collection failed:', error));
+    }
+
     // ---- Bot settings (owner only)
 
-    function renderDefinicoes(sessao, { erros = [], guardado = false, publicUrl, orcamento } = {}) {
+    function renderDefinicoes(sessao, { erros = [], guardado = false, recolhendo = false, publicUrl, orcamento } = {}) {
         const origens = Object.fromEntries(['botToken', 'clientSecret', 'publicUrl', 'leetifyKey', 'faceitKey', 'orcamentoDiario'].map((c) => [c, settings.origem(c)]));
         return views.paginaDefinicoes({
             sessao,
@@ -452,11 +459,17 @@ function iniciarPainel(bot, { db, recolha }) {
             botNome: cliente().user.tag,
             erros,
             guardado,
+            recolhendo,
         });
     }
 
     app.get('/settings', exigirSessao, exigirDono, (req, res) => {
-        res.send(renderDefinicoes(req.sessao, { guardado: req.query.saved === '1' }));
+        res.send(renderDefinicoes(req.sessao, { guardado: req.query.saved === '1', recolhendo: req.query.collecting === '1' }));
+    });
+
+    app.post('/settings/collect', exigirSessao, exigirCsrf, exigirDono, (req, res) => {
+        recolherAgora(`asked by ${req.sessao.nome}`);
+        res.redirect('/settings?collecting=1');
     });
 
     app.post('/settings', exigirSessao, exigirCsrf, exigirDono, async (req, res, next) => {
@@ -511,6 +524,11 @@ function iniciarPainel(bot, { db, recolha }) {
                 ...(!orcamentoEnv && { orcamentoDiario: orcamento }),
             });
             console.log(`⚙ Bot settings changed by ${req.sessao.nome} (${req.sessao.userId})`);
+            // A new FACEIT key: fetch the FACEIT matches right away instead of waiting for the evening window
+            if (novaFaceit) {
+                recolherAgora('new FACEIT key');
+                return res.redirect('/settings?saved=1&collecting=1');
+            }
             res.redirect('/settings?saved=1');
         } catch (error) {
             next(error);

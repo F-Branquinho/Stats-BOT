@@ -378,14 +378,21 @@ function paginaSetupConcluido({ nome, publicUrl, redirect, convite }) {
 </div>`);
 }
 
-function paginaDefinicoes({ sessao, origens, publicUrl, orcamento, botNome, erros, guardado }) {
+function paginaDefinicoes({ sessao, origens, publicUrl, orcamento, botNome, erros, guardado, recolhendo = false }) {
     const doEnv = '<div class="ajuda">Set in <code>.env</code>, so it can only be changed there.</div>';
     return layout('Bot settings', `
 ${cabecalho(sessao)}
 <h1>Bot settings</h1>
 <p class="suave">Connected as ${esc(botNome)}. Only the owner of the Discord application sees this page.</p>
 ${guardado ? alertas('ok', ['Settings saved.']) : ''}
+${recolhendo ? alertas('ok', ['Collection started: new matches from Leetify and FACEIT show up in the tables in a minute or two.']) : ''}
 ${alertas('erro', erros)}
+<form class="cartao" method="post" action="/settings/collect">
+  <input type="hidden" name="csrf" value="${esc(sessao.csrf)}">
+  <h2>Collect now</h2>
+  <p class="suave">Collections run every 30 minutes from 16:00 to 04:00. This fetches everyone's new matches right away (same as <code>/refresh</code>).</p>
+  <button class="botao secundario" type="submit">Collect now</button>
+</form>
 <form class="cartao" method="post" action="/settings" autocomplete="off">
   <input type="hidden" name="csrf" value="${esc(sessao.csrf)}">
 

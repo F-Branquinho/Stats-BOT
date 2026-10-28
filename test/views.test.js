@@ -202,3 +202,11 @@ test('setup and bot settings pages have the FACEIT key field', () => {
     const doEnv = paginaDefinicoes({ ...base, origens: { faceitKey: 'env' } });
     assert.ok(!doEnv.includes('name="faceitKey"'));
 });
+
+test('bot settings has a "Collect now" button', () => {
+    const { paginaDefinicoes } = require('../src/web/views');
+    const html = paginaDefinicoes({ sessao, origens: {}, publicUrl: 'https://s.example.com', orcamento: 3000, botNome: 'Bot#1', erros: [], guardado: false, recolhendo: true });
+    assert.match(html, /<form[^>]*method="post"[^>]*action="\/settings\/collect"/);
+    assert.match(html, /Collect now/);
+    assert.match(html, /Collection started/);
+});

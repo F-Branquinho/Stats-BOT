@@ -10,7 +10,7 @@ const linha = {
 };
 
 test('command names', () => {
-    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'remove', 'table', 'stats', 'top', 'mvp', 'stats-help']);
+    assert.deepStrictEqual(definicoes.map((c) => c.name), ['link', 'add', 'remove', 'refresh', 'table', 'stats', 'top', 'mvp', 'stats-help']);
 });
 
 test('/add takes a required steam64 and an optional user', () => {
@@ -293,5 +293,25 @@ test('every /remove reply exists in Portuguese and English', () => {
             assert.ok(typeof t.cmd.remove?.[chave] === 'string' && t.cmd.remove[chave].length > 0, `${codigo}.cmd.remove.${chave}`);
         }
         assert.match(t.cmd.ajuda, /\/remove/, `${codigo} help lists /remove`);
+    }
+});
+
+test('refrescar: only members with Manage Server can start a collection', async () => {
+    const { refrescar } = require('../src/commands');
+    let chamadas = 0;
+    const recolha = { recolherTudo: async () => { chamadas++; return { novas: 12, jogadores: 7, parado: null }; } };
+    assert.deepStrictEqual(await refrescar({ recolha, podeGerir: false }), { ok: false, motivo: 'sem_permissao' });
+    assert.strictEqual(chamadas, 0);
+    assert.deepStrictEqual(await refrescar({ recolha, podeGerir: true }), { ok: true, novas: 12, jogadores: 7, parado: null });
+    assert.strictEqual(chamadas, 1);
+});
+
+test('every /refresh reply exists in Portuguese and English', () => {
+    const { IDIOMAS } = require('../src/i18n');
+    for (const [codigo, t] of Object.entries(IDIOMAS)) {
+        for (const chave of ['ok', 'limite', 'orcamento', 'sem_permissao']) {
+            assert.ok(typeof t.cmd.refresh?.[chave] === 'string' && t.cmd.refresh[chave].length > 0, `${codigo}.cmd.refresh.${chave}`);
+        }
+        assert.match(t.cmd.ajuda, /\/refresh/, `${codigo} help lists /refresh`);
     }
 });

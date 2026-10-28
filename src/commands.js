@@ -49,6 +49,9 @@ const definicoes = [
         .addUserOption((o) => o.setName('user').setDescription('Who to remove (defaults to you)'))
         .addStringOption((o) => o.setName('steam64').setDescription('Or the Steam64 ID / profile link to remove').setMaxLength(100)),
     new SlashCommandBuilder()
+        .setName('refresh')
+        .setDescription("Fetch everyone's new matches right now (Manage Server)"),
+    new SlashCommandBuilder()
         .setName('table')
         .setDescription("Open this server's stats table"),
     new SlashCommandBuilder()
@@ -238,6 +241,13 @@ function removerPorComando({ db: bd, autorId, alvoId, texto, podeGerir }) {
     return { ok: true, discordId: jogador.discord_id, steam64Id: jogador.steam64_id };
 }
 
+/** /refresh: a full collection right now (outside the evening window too). Needs Manage Server. */
+async function refrescar({ recolha: rc, podeGerir }) {
+    if (!podeGerir) return { ok: false, motivo: 'sem_permissao' };
+    const { novas, jogadores, parado } = await rc.recolherTudo();
+    return { ok: true, novas, jogadores, parado };
+}
+
 /** The /add reply for a ligarPorComando result. */
 function respostaAdd(r, t, jogador) {
     if (!r.ok) return preencher(t.cmd.add[r.motivo], { jogador });
@@ -340,6 +350,16 @@ const COMANDOS = {
         await interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: SEM_PINGS });
     },
 
+    async refresh(interaction, t) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const r = await refrescar({ recolha, podeGerir: Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) });
+        let content;
+        if (!r.ok) content = t.cmd.refresh.sem_permissao;
+        else if (r.parado) content = t.cmd.refresh[r.parado];
+        else content = preencher(t.cmd.refresh.ok, { novas: r.novas, jogadores: r.jogadores });
+        await interaction.editReply({ content });
+    },
+
     async table(interaction, t) {
         const { publicUrl } = settings.obter();
         await interaction.reply(respostaTable({ publicUrl, guildId: interaction.guildId, t, servidor: interaction.guild?.name ?? '' }));
@@ -368,5 +388,5 @@ async function tratarInteracao(interaction) {
 }
 
 module.exports = {
-    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, removerPorComando, respostaAdd, respostaTable, mensagemMvp, urlConvite, registarComandos, definirBD, tratarInteracao,
+    CATEGORIAS, PERMISSOES_CONVITE, definicoes, linhaStats, linhasTop, lerSteam64, ligarPorComando, removerPorComando, refrescar, respostaAdd, respostaTable, mensagemMvp, urlConvite, registarComandos, definirBD, tratarInteracao,
 };

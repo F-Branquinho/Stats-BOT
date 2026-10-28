@@ -46,6 +46,12 @@ const IDIOMAS = {
             mvpFaltam: '{jogador} ({n}/{minimo}, faltam {k})',
             mvpPremios: '**Prémios, por agora:**',
             table: '📊 Tabela de {servidor}:',
+            refresh: {
+                ok: '🔄 Recolha feita: {novas} partidas novas de {jogadores} jogadores (Leetify e FACEIT).',
+                limite: '⏳ A Leetify pediu para esperar um pouco. A recolha parou a meio; tenta outra vez daqui a uns minutos.',
+                orcamento: '⛔ Chegou-se ao limite diário de pedidos à Leetify. A recolha volta amanhã (o limite muda-se em Bot settings).',
+                sem_permissao: 'Só quem tem a permissão **Manage Server** pode fazer uma recolha.',
+            },
             remove: {
                 ok: '🗑️ {jogador} saiu da tabela (conta Steam `{steam}`). Pode voltar com `/add` ou `/link`.',
                 invalido: 'Isso não parece um Steam64 ID. Usa o número de 17 dígitos (7656119…) ou o link steamcommunity.com/profiles/….',
@@ -62,6 +68,7 @@ const IDIOMAS = {
                 '`/link` liga a tua conta Steam',
                 '`/add steam64 [user]` adiciona uma conta Steam pelo Steam64 ID',
                 '`/remove [user|steam64]` tira alguém da tabela (outros precisam de Manage Server)',
+                '`/refresh` vai já buscar as partidas novas de todos (Manage Server)',
                 '`/stats [user]` resumo do mês',
                 '`/table` abre a tabela do servidor',
                 '`/top category [period]` top 10 por categoria',
@@ -116,6 +123,12 @@ const IDIOMAS = {
             mvpFaltam: '{jogador} ({n}/{minimo}, {k} to go)',
             mvpPremios: '**Awards, so far:**',
             table: '📊 {servidor} table:',
+            refresh: {
+                ok: '🔄 Collection done: {novas} new matches from {jogadores} players (Leetify and FACEIT).',
+                limite: '⏳ Leetify asked to slow down. The collection stopped halfway; try again in a few minutes.',
+                orcamento: "⛔ The daily Leetify request budget is used up. Collections resume tomorrow (change the budget in Bot settings).",
+                sem_permissao: 'Only members with the **Manage Server** permission can start a collection.',
+            },
             remove: {
                 ok: '🗑️ {jogador} is off the table (Steam account `{steam}`). They can come back with `/add` or `/link`.',
                 invalido: "That doesn't look like a Steam64 ID. Use the 17-digit number (7656119…) or a steamcommunity.com/profiles/… link.",
@@ -132,6 +145,7 @@ const IDIOMAS = {
                 '`/link` link your Steam account',
                 '`/add steam64 [user]` add a Steam account by its Steam64 ID',
                 '`/remove [user|steam64]` take someone off the table (others need Manage Server)',
+                "`/refresh` fetch everyone's new matches right now (Manage Server)",
                 "`/stats [user]` this month's summary",
                 "`/table` opens this server's table",
                 '`/top category [period]` top 10 by category',
