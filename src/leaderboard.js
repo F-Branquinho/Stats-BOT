@@ -61,7 +61,59 @@ function colunasV3(partidas) {
     };
 }
 
-function resumir(steam64Id, partidas, perfil, mensal) {
+/** Last 5 results (oldest first), the current streak and the longest win streak. `partidas` are newest first. */
+function forma(partidas) {
+    const ultimas = partidas.slice(0, 5).map((p) => p.result).reverse();
+    let atual = 0;
+    while (atual < partidas.length && partidas[atual].result === partidas[0].result) atual++;
+    let melhor = 0;
+    let corrida = 0;
+    for (const p of partidas) {
+        corrida = p.result === 'V' ? corrida + 1 : 0;
+        melhor = Math.max(melhor, corrida);
+    }
+    return {
+        formaTexto: ultimas.join(''),
+        forma: ultimas.filter((r) => r === 'V').length,
+        sequenciaAtual: partidas.length ? `${atual}${partidas[0].result}` : '',
+        melhorSequencia: melhor,
+    };
+}
+
+/** Columns from v4 on (null when no match has them yet). */
+function colunasV4(partidas) {
+    const com = (campo) => partidas.filter((p) => p[campo] !== null && p[campo] !== undefined);
+    const media = (campo) => {
+        const lista = com(campo);
+        return lista.length ? lista.reduce((t, p) => t + p[campo], 0) / lista.length : null;
+    };
+    const comSobrevivencia = com('rounds_survived');
+    const rondas = comSobrevivencia.reduce((t, p) => t + p.rounds, 0);
+    const assistencias = partidas.reduce((t, p) => t + (p.assists ?? 0), 0);
+    return {
+        ctLeetify: media('ct_leetify'),
+        tLeetify: media('t_leetify'),
+        assistencias,
+        assistPorPartida: partidas.length ? assistencias / partidas.length : 0,
+        sobrevivencia: rondas ? comSobrevivencia.reduce((t, p) => t + p.rounds_survived, 0) / rondas : null,
+        tirosEquipa: com('shots_hit_friend').reduce((t, p) => t + p.shots_hit_friend, 0),
+    };
+}
+
+/** Current ranks from the profile, and how much they moved in the period (rank history). */
+function colunasRank(perfil, rank) {
+    const diferenca = (campo) => (rank && typeof rank.fim[campo] === 'number' && typeof rank.inicio[campo] === 'number'
+        ? rank.fim[campo] - rank.inicio[campo] : null);
+    return {
+        premier: perfil?.premier ?? null,
+        faceitNivel: perfil?.faceit ?? null,
+        elo: perfil?.faceit_elo ?? null,
+        premierDelta: diferenca('premier'),
+        eloDelta: diferenca('faceitElo'),
+    };
+}
+
+function resumir(steam64Id, partidas, perfil, mensal, rank = null) {
     const soma = (campo) => partidas.reduce((t, p) => t + (p[campo] ?? 0), 0);
     const comLeetify = partidas.filter((p) => p.leetify_rating !== null);
     const comHE = partidas.filter((p) => p.he_foes_damage !== null && p.he_foes_damage !== undefined);
@@ -102,6 +154,9 @@ function resumir(steam64Id, partidas, perfil, mensal) {
         k4: soma('multi4k'),
         k5: soma('multi5k'),
         ...colunasV3(partidas),
+        ...forma(partidas),
+        ...colunasV4(partidas),
+        ...colunasRank(perfil, rank),
         aim: perfil?.aim ?? null,
         // Current Leetify ratings (not per period, like aim)
         clutch: perfil?.clutch ?? null,
@@ -111,17 +166,19 @@ function resumir(steam64Id, partidas, perfil, mensal) {
 }
 
 /** One row per player with counted matches in the period, sorted by points. */
-function tabela(db, steam64Ids, periodo, agora = new Date()) {
+/** `fontes`: optional list of Leetify data sources to keep (e.g. only FACEIT). */
+function tabela(db, steam64Ids, periodo, agora = new Date(), { fontes = null } = {}) {
     const { desde, ate, mes } = intervalo(periodo, agora);
-    return tabelaEntre(db, steam64Ids, desde, ate, mes !== null);
+    return tabelaEntre(db, steam64Ids, desde, ate, mes !== null, fontes);
 }
 
-function tabelaEntre(db, steam64Ids, desde, ate, mensal = true) {
+function tabelaEntre(db, steam64Ids, desde, ate, mensal = true, fontes = null) {
     const porJogador = new Map(steam64Ids.map((s) => [s, []]));
-    for (const p of db.partidasDe(steam64Ids, desde, ate)) porJogador.get(p.steam64_id).push(p);
+    for (const p of db.partidasDe(steam64Ids, desde, ate, fontes)) porJogador.get(p.steam64_id).push(p);
+    const ranks = db.ranksEntre(steam64Ids, desde, ate);
     return [...porJogador]
         .filter(([, partidas]) => partidas.length > 0)
-        .map(([s, partidas]) => resumir(s, partidas, db.perfil(s), mensal))
+        .map(([s, partidas]) => resumir(s, partidas, db.perfil(s), mensal, ranks.get(s)))
         .sort(ordenarPorPontos);
 }
 

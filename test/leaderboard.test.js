@@ -7,10 +7,13 @@ const AGORA = new Date('2026-10-25T12:00:00Z');
 let contador = 0;
 
 // Stores a counted 20-round match (13–7 win by default) for one player
-function partida(db, steam64Id, { quando = '2026-10-10T20:00:00.000Z', v = 13, d = 7, kills = 20, deaths = 15, hs = 10, multi = [10, 5, 0, 0, 0], ...extra } = {}) {
+function partida(db, steam64Id, {
+    quando = '2026-10-10T20:00:00.000Z', v = 13, d = 7, kills = 20, deaths = 15, hs = 10, multi = [10, 5, 0, 0, 0],
+    id = null, data_source = 'matchmaking', map_name = 'de_mirage', ...extra
+} = {}) {
     contador++;
     db.guardarPartida(
-        { id: `m${contador}`, finished_at: quando, map_name: 'de_mirage', data_source: 'matchmaking', has_banned_player: false },
+        { id: id ?? `m${contador}`, finished_at: quando, map_name, data_source, has_banned_player: false },
         {
             steam64_id: steam64Id, rounds_count: v + d, rounds_won: v, rounds_lost: d,
             total_kills: kills, total_deaths: deaths, total_hs_kills: hs,
@@ -196,4 +199,58 @@ test('ordenarPor can sort lowest first (reaction time, preaim), empty values sti
     ];
     assert.deepStrictEqual(ordenarPor(linhas, 'reacao', { crescente: true }).map((l) => l.steam64Id), ['c', 'a', 'b']);
     assert.deepStrictEqual(ordenarPor(linhas, 'reacao').map((l) => l.steam64Id), ['a', 'c', 'b']);
+});
+
+test('ranks: current Premier rating, FACEIT level and ELO, and how much they moved in the period', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPerfil('s1', { ranks: { premier: 16200, faceit: 8, faceit_elo: 1900 } });
+    db.guardarRank('s1', '2026-09-30T20:00:00.000Z', { premier: 15000, faceitElo: 1800 });
+    db.guardarRank('s1', '2026-10-20T20:00:00.000Z', { premier: 16200, faceitElo: 1900 });
+    partida(db, 's1');
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.deepStrictEqual([l.premier, l.faceitNivel, l.elo, l.premierDelta, l.eloDelta], [16200, 8, 1900, 1200, 100]);
+});
+
+test('ranks without history: no change shown (null)', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1');
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.deepStrictEqual([l.premier, l.premierDelta, l.eloDelta], [null, null, null]);
+});
+
+test('form: last 5 results (newest last), wins among them, current streak and best win streak', () => {
+    const db = abrirBD(':memory:');
+    // Oldest to newest: V V V D V V E V V
+    const resultados = ['V', 'V', 'V', 'D', 'V', 'V', 'E', 'V', 'V'];
+    resultados.forEach((r, i) => partida(db, 's1', {
+        quando: `2026-10-${String(i + 1).padStart(2, '0')}T20:00:00.000Z`,
+        v: r === 'V' ? 13 : r === 'E' ? 12 : 5, d: r === 'V' ? 5 : r === 'E' ? 12 : 13,
+    }));
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.strictEqual(l.formaTexto, 'VVEVV');
+    assert.strictEqual(l.forma, 4);
+    assert.strictEqual(l.sequenciaAtual, '2V');
+    assert.strictEqual(l.melhorSequencia, 3);
+});
+
+test('CT and T ratings, assists, survival and shots that hit teammates', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1', { ct_leetify_rating: 0.05, t_leetify_rating: -0.01, total_assists: 4, rounds_survived: 8, shots_hit_friend: 2 });
+    partida(db, 's1', { ct_leetify_rating: 0.01, t_leetify_rating: 0.03, total_assists: 6, rounds_survived: 12, shots_hit_friend: 0 });
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.ok(Math.abs(l.ctLeetify - 0.03) < 1e-9);
+    assert.ok(Math.abs(l.tLeetify - 0.01) < 1e-9);
+    assert.strictEqual(l.assistencias, 10);
+    assert.strictEqual(l.assistPorPartida, 5);
+    assert.strictEqual(l.sobrevivencia, 20 / 40);
+    assert.strictEqual(l.tirosEquipa, 2);
+});
+
+test('tabela can keep only some match types', () => {
+    const db = abrirBD(':memory:');
+    partida(db, 's1');
+    partida(db, 's1', { data_source: 'faceit' });
+    assert.strictEqual(tabela(db, ['s1'], 'mes', AGORA)[0].partidas, 2);
+    assert.strictEqual(tabela(db, ['s1'], 'mes', AGORA, { fontes: ['faceit'] })[0].partidas, 1);
+    assert.deepStrictEqual(tabela(db, ['s1'], 'mes', AGORA, { fontes: ['matchmaking_competitive'] }), []);
 });
