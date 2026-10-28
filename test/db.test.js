@@ -173,7 +173,7 @@ test('an existing database gets the HE columns, and old matches are filled in wh
     const novo = db.guardarPartida(premier, { ...stats(premier, 's1'), he_thrown: 10, he_foes_damage_avg: 2.4, he_friends_damage_avg: 0 });
     assert.strictEqual(novo, false);
     assert.strictEqual(db.partidasDe(['s1'], null, null)[0].he_foes_damage, 24);
-    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 3);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 4);
     db.fechar();
 });
 
@@ -209,7 +209,7 @@ test('a v2 database gets the v3 columns, filled in when Leetify sends the match 
     const [p] = db.partidasDe(['s1'], null, null);
     assert.strictEqual(p.total_damage, 1974);
     assert.strictEqual(p.mvps, 2);
-    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 3);
+    assert.strictEqual(db.bd.pragma('user_version', { simple: true }), 4);
     db.fechar();
 });
 
@@ -218,4 +218,45 @@ test('guardarPerfil also keeps the clutch and opening ratings', () => {
     db.guardarPerfil('s1', { rating: { aim: 85, clutch: 0.1221, opening: -0.0021 } });
     assert.strictEqual(db.perfil('s1').clutch, 0.1221);
     assert.strictEqual(db.perfil('s1').opening, -0.0021);
+});
+
+test('v4 stats are stored: team, CT/T rating, rounds survived, shots that hit teammates', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPartida(premier, {
+        ...stats(premier, 's1'), initial_team_number: 3, ct_leetify_rating: 0.0572, t_leetify_rating: -0.0365, rounds_survived: 16, shots_hit_friend: 2,
+    });
+    const [p] = db.partidasDe(['s1'], null, null);
+    assert.deepStrictEqual([p.team, p.ct_leetify, p.t_leetify, p.rounds_survived, p.shots_hit_friend], [3, 0.0572, -0.0365, 16, 2]);
+});
+
+test('partidasDe can keep only some match types', () => {
+    const db = abrirBD(':memory:');
+    const faceit = partidas.find((m) => m.data_source === 'faceit');
+    db.guardarPartida(premier, stats(premier, 's1'));
+    db.guardarPartida(faceit, stats(faceit, 's1'));
+    assert.strictEqual(db.partidasDe(['s1'], null, null).length, 2);
+    assert.deepStrictEqual(db.partidasDe(['s1'], null, null, ['faceit']).map((p) => p.data_source), ['faceit']);
+    assert.deepStrictEqual(db.partidasDe(['s1'], null, null, ['matchmaking', 'matchmaking_competitive']).map((p) => p.data_source), ['matchmaking']);
+});
+
+test('guardarPerfil also keeps the FACEIT level', () => {
+    const db = abrirBD(':memory:');
+    db.guardarPerfil('s1', { ranks: { premier: 22699, faceit: 10, faceit_elo: 2100 } });
+    assert.strictEqual(db.perfil('s1').faceit, 10);
+});
+
+test('rank history: one snapshot per day, with the start and end of a period', () => {
+    const db = abrirBD(':memory:');
+    db.guardarRank('s1', '2026-09-30T20:00:00.000Z', { premier: 15000, faceitElo: 1800 });
+    db.guardarRank('s1', '2026-10-05T20:00:00.000Z', { premier: 15500, faceitElo: 1850 });
+    db.guardarRank('s1', '2026-10-05T23:00:00.000Z', { premier: 15600, faceitElo: 1860 }); // same Lisbon day: replaces
+    db.guardarRank('s1', '2026-10-20T20:00:00.000Z', { premier: 16200, faceitElo: 1900 });
+    db.guardarRank('s2', '2026-10-10T20:00:00.000Z', { premier: 9000, faceitElo: null });
+
+    const outubro = db.ranksEntre(['s1', 's2'], '2026-09-30T23:00:00.000Z', '2026-10-31T23:59:00.000Z');
+    // s1 starts from its last snapshot before the month, s2 from its first one in the month
+    assert.deepStrictEqual(outubro.get('s1'), { inicio: { premier: 15000, faceitElo: 1800 }, fim: { premier: 16200, faceitElo: 1900 } });
+    assert.deepStrictEqual(outubro.get('s2'), { inicio: { premier: 9000, faceitElo: null }, fim: { premier: 9000, faceitElo: null } });
+    assert.strictEqual(db.ranksEntre(['s1'], '2026-10-06T00:00:00.000Z', '2026-10-07T00:00:00.000Z').get('s1').fim.premier, 15600);
+    assert.strictEqual(db.ranksEntre(['s3'], null, null).get('s3'), undefined);
 });

@@ -43,7 +43,10 @@ function criarRecolha({ db, leetify, esperar = dormir, agora = () => new Date() 
             db.marcarRecolha(s, quando);
             if (antigo(jogador.profile_at, agora())) {
                 try {
-                    db.guardarPerfil(s, await pedir(() => leetify.perfil(s)));
+                    const perfil = await pedir(() => leetify.perfil(s));
+                    db.guardarPerfil(s, perfil);
+                    // Daily history of the ranks, for "how much did they climb this month"
+                    db.guardarRank(s, quando, { premier: perfil.ranks?.premier ?? null, faceitElo: perfil.ranks?.faceit_elo ?? null });
                 } catch (error) {
                     // The matches came back, so the player is fine; only the profile ratings are missing
                     if (!(error instanceof ErroPerfil)) throw error;

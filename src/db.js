@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const { hltv1, resultado, pontos, partidaConta } = require('./rating');
+const { agoraLisboa } = require('./periodos');
 
 const ESQUEMA = `
 CREATE TABLE IF NOT EXISTS players (
@@ -63,13 +64,21 @@ CREATE TABLE IF NOT EXISTS reports (
     sent_at  TEXT NOT NULL,
     PRIMARY KEY (guild_id, month)
 );
+CREATE TABLE IF NOT EXISTS rank_history (
+    steam64_id TEXT NOT NULL,
+    day        TEXT NOT NULL,
+    em         TEXT NOT NULL,
+    premier    INTEGER,
+    faceit_elo INTEGER,
+    PRIMARY KEY (steam64_id, day)
+);
 CREATE TABLE IF NOT EXISTS api_usage (
     day      TEXT PRIMARY KEY,
     requests INTEGER NOT NULL
 );
 `;
 
-const VERSAO = 3;
+const VERSAO = 4;
 
 // Columns added after v1, in this order, by migrar() (also on a new database, so both end up the same).
 // Matches stored before a column existed get it filled the next time Leetify sends them.
@@ -92,9 +101,16 @@ const COLUNAS_TARDIAS = {
     spray_accuracy: 'REAL',
     counter_strafing_good: 'INTEGER',
     counter_strafing_all: 'INTEGER',
+    // v4: team (for duos), CT/T side ratings, rounds survived, shots that hit teammates
+    team: 'INTEGER',
+    ct_leetify: 'REAL',
+    t_leetify: 'REAL',
+    rounds_survived: 'INTEGER',
+    shots_hit_friend: 'INTEGER',
 };
 // v3: current Leetify clutch and opening ratings
-const COLUNAS_PERFIL = { clutch: 'REAL', opening: 'REAL' };
+// v4: FACEIT level
+const COLUNAS_PERFIL = { clutch: 'REAL', opening: 'REAL', faceit: 'INTEGER' };
 
 function acrescentarColunas(db, tabela, colunas) {
     const existentes = new Set(db.prepare(`PRAGMA table_info(${tabela})`).all().map((c) => c.name));
@@ -141,6 +157,11 @@ function colunasTardias(s) {
         spray_accuracy: numero(s.spray_accuracy),
         counter_strafing_good: numero(s.counter_strafing_shots_good),
         counter_strafing_all: numero(s.counter_strafing_shots_all),
+        team: numero(s.initial_team_number),
+        ct_leetify: numero(s.ct_leetify_rating),
+        t_leetify: numero(s.t_leetify_rating),
+        rounds_survived: numero(s.rounds_survived),
+        shots_hit_friend: numero(s.shots_hit_friend),
     };
 }
 
@@ -183,10 +204,10 @@ function abrirBD(ficheiro) {
             WHERE match_id = @match_id AND steam64_id = @steam64_id`),
         contarPartidas: db.prepare('SELECT COUNT(*) AS n FROM matches'),
         perfil: db.prepare('SELECT * FROM player_profile WHERE steam64_id = ?'),
-        guardarPerfil: db.prepare(`INSERT INTO player_profile (steam64_id, aim, utility, positioning, premier, faceit_elo, clutch, opening, updated_at)
-            VALUES (@steam64Id, @aim, @utility, @positioning, @premier, @faceitElo, @clutch, @opening, @agora)
+        guardarPerfil: db.prepare(`INSERT INTO player_profile (steam64_id, aim, utility, positioning, premier, faceit, faceit_elo, clutch, opening, updated_at)
+            VALUES (@steam64Id, @aim, @utility, @positioning, @premier, @faceit, @faceitElo, @clutch, @opening, @agora)
             ON CONFLICT (steam64_id) DO UPDATE SET aim = excluded.aim, utility = excluded.utility,
-                positioning = excluded.positioning, premier = excluded.premier, faceit_elo = excluded.faceit_elo,
+                positioning = excluded.positioning, premier = excluded.premier, faceit = excluded.faceit, faceit_elo = excluded.faceit_elo,
                 clutch = excluded.clutch, opening = excluded.opening, updated_at = excluded.updated_at`),
         servidor: db.prepare('SELECT * FROM guilds WHERE guild_id = ?'),
         guardarServidor: db.prepare(`INSERT INTO guilds VALUES (@guildId, @reportChannelId, @language, @reportEnabled, @agora)
@@ -197,6 +218,11 @@ function abrirBD(ficheiro) {
         pedidos: db.prepare('SELECT requests FROM api_usage WHERE day = ?'),
         contarPedido: db.prepare(`INSERT INTO api_usage VALUES (?, 1)
             ON CONFLICT (day) DO UPDATE SET requests = requests + 1`),
+        guardarRank: db.prepare(`INSERT INTO rank_history VALUES (@steam64Id, @dia, @em, @premier, @faceitElo)
+            ON CONFLICT (steam64_id, day) DO UPDATE SET em = excluded.em, premier = excluded.premier, faceit_elo = excluded.faceit_elo`),
+        rankAntes: db.prepare('SELECT * FROM rank_history WHERE steam64_id = ? AND em < ? ORDER BY em DESC LIMIT 1'),
+        ranksDentro: db.prepare(`SELECT * FROM rank_history WHERE steam64_id = ?
+            AND (? IS NULL OR em >= ?) AND (? IS NULL OR em < ?) ORDER BY em`),
     };
 
     /** `forcar` moves a Steam account that is linked to someone else (the old link is removed). */
@@ -261,14 +287,33 @@ function abrirBD(ficheiro) {
     });
 
     /** Counted matches of these players, newest first, with finished_at in [desde, ate). */
-    function partidasDe(steam64Ids, desde, ate) {
-        if (steam64Ids.length === 0) return [];
-        const marcas = steam64Ids.map(() => '?').join(', ');
+    /** Counted matches of these players, newest first, with finished_at in [desde, ate) and, optionally, only these data sources. */
+    function partidasDe(steam64Ids, desde, ate, fontes = null) {
+        if (steam64Ids.length === 0 || fontes?.length === 0) return [];
+        const marcas = (lista) => lista.map(() => '?').join(', ');
+        const filtroFontes = fontes ? `AND m.data_source IN (${marcas(fontes)})` : '';
         return db.prepare(`SELECT pm.*, m.finished_at, m.map_name, m.data_source
             FROM player_matches pm JOIN matches m ON m.id = pm.match_id
-            WHERE pm.counted = 1 AND pm.steam64_id IN (${marcas})
+            WHERE pm.counted = 1 AND pm.steam64_id IN (${marcas(steam64Ids)}) ${filtroFontes}
               AND (? IS NULL OR m.finished_at >= ?) AND (? IS NULL OR m.finished_at < ?)
-            ORDER BY m.finished_at DESC`).all(...steam64Ids, desde, desde, ate, ate);
+            ORDER BY m.finished_at DESC`).all(...steam64Ids, ...(fontes ?? []), desde, desde, ate, ate);
+    }
+
+    /**
+     * Each player's Premier rating and FACEIT ELO at the start and end of [desde, ate): the start is the last
+     * daily snapshot before the period (or its first one), the end is its last one (or the start, if none).
+     */
+    function ranksEntre(steam64Ids, desde, ate) {
+        const resultado = new Map();
+        const valores = (r) => ({ premier: r.premier, faceitElo: r.faceit_elo });
+        for (const s of steam64Ids) {
+            const antes = desde ? q.rankAntes.get(s, desde) : null;
+            const dentro = q.ranksDentro.all(s, desde, desde, ate, ate);
+            const inicio = antes ?? dentro[0];
+            if (!inicio) continue;
+            resultado.set(s, { inicio: valores(inicio), fim: valores(dentro.at(-1) ?? inicio) });
+        }
+        return resultado;
     }
 
     return {
@@ -293,6 +338,7 @@ function abrirBD(ficheiro) {
                 utility: perfil.rating?.utility ?? null,
                 positioning: perfil.rating?.positioning ?? null,
                 premier: perfil.ranks?.premier ?? null,
+                faceit: perfil.ranks?.faceit ?? null,
                 faceitElo: perfil.ranks?.faceit_elo ?? null,
                 clutch: perfil.rating?.clutch ?? null,
                 opening: perfil.rating?.opening ?? null,
@@ -322,6 +368,11 @@ function abrirBD(ficheiro) {
         marcarRelatorio: (guildId, mes) => q.marcarRelatorio.run(guildId, mes, new Date().toISOString()),
         pedidosHoje: (dia) => q.pedidos.get(dia)?.requests ?? 0,
         contarPedido: (dia) => q.contarPedido.run(dia),
+        /** One snapshot per Lisbon day of a player's Premier rating and FACEIT ELO (the last one of the day wins). */
+        guardarRank(steam64Id, quando, { premier = null, faceitElo = null }) {
+            q.guardarRank.run({ steam64Id, dia: agoraLisboa(new Date(quando)).data, em: quando, premier, faceitElo });
+        },
+        ranksEntre,
     };
 }
 

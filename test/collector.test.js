@@ -148,3 +148,9 @@ test('recolherJogador marks a missing profile and returns 0', async () => {
     assert.strictEqual(await recolha.recolherJogador('s1'), 0);
     assert.strictEqual(db.jogador('d0').leetify_status, 'not_found');
 });
+
+test('a daily rank snapshot is kept when the profile is fetched', async () => {
+    const { db, recolha } = preparar({ jogadores: ['s1'], perfil: async () => ({ rating: { aim: 70 }, ranks: { premier: 22699, faceit_elo: 2100 } }) });
+    await recolha.recolherTudo();
+    assert.deepStrictEqual(db.ranksEntre(['s1'], null, null).get('s1').fim, { premier: 22699, faceitElo: 2100 });
+});
