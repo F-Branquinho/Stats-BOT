@@ -106,10 +106,10 @@ test('there are utility, multi-kill and aim tables below', () => {
 
 test('each table sorts on its own and keeps the other sorts and the period', () => {
     const html = pagina({ periodo: 'mes_passado', ordem: 'kills', ordens: { u: 'heDano', k: 'k5', m: 'reacao' } });
-    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills&amp;u=heDano&amp;k=k5&amp;m=reacao" class="ativo">Kills/);
-    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills&amp;u=heDano&amp;k=k5&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
-    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;ordem=kills&amp;u=flashPct&amp;k=k5&amp;m=reacao#utilitarios">Flash %/);
-    assert.match(html, /href="\/s\/g1\?periodo=sempre&amp;ordem=kills&amp;u=heDano&amp;k=k5&amp;m=reacao"/);
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;tipo=todas&amp;ordem=kills&amp;r=premier&amp;u=heDano&amp;k=k5&amp;l=ctLeetify&amp;m=reacao" class="ativo">Kills/);
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;tipo=todas&amp;ordem=kills&amp;r=premier&amp;u=heDano&amp;k=k5&amp;l=ctLeetify&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;tipo=todas&amp;ordem=kills&amp;r=premier&amp;u=flashPct&amp;k=k5&amp;l=ctLeetify&amp;m=reacao#utilitarios">Flash %/);
+    assert.match(html, /href="\/s\/g1\?periodo=sempre&amp;tipo=todas&amp;ordem=kills&amp;r=premier&amp;u=heDano&amp;k=k5&amp;l=ctLeetify&amp;m=reacao"/);
 });
 
 test('utility, multi-kill and aim values are formatted', () => {
@@ -124,4 +124,68 @@ test('a table sorted by a column orders its rows by it', () => {
     const html = paginaTabela({ sessao, guild, linhas, periodo: 'mes', ordem: 'pontos', ordens: { k: 'k5' } });
     const multi = html.slice(html.indexOf('id="multikills"'), html.indexOf('id="mira"'));
     assert.ok(multi.indexOf('Bravo') < multi.indexOf('Alpha'));
+});
+
+const rui = () => linha({
+    steam64Id: 's2', discordId: 'd2', nome: 'Rui', formaTexto: 'VVEVV', forma: 4, sequenciaAtual: '2V', melhorSequencia: 3,
+    premier: 22699, premierDelta: 1200, faceitNivel: 10, elo: 2100, eloDelta: -35,
+    ctLeetify: 0.0512, tLeetify: -0.0123, assistencias: 40, assistPorPartida: 4.25, sobrevivencia: 0.42, tirosEquipa: 7,
+});
+const extras = () => ({
+    duos: [{ a: 's1', b: 's2', partidas: 3, vitorias: 2, empates: 0, derrotas: 1, pctVitorias: 2 / 3, hltv: 1.11 }],
+    mapas: [{ mapa: 'de_mirage', partidas: 12, pctVitorias: 0.58, hltv: 1.07, melhor: { steam64Id: 's2', hltv: 1.31, partidas: 5 } }],
+    recordes: {
+        hltv: { steam64Id: 's2', valor: 1.94, mapa: 'de_nuke', quando: '2026-10-20T21:00:00.000Z' },
+        kills: { steam64Id: 's1', valor: 35, mapa: 'de_dust2', quando: '2026-10-21T21:00:00.000Z' },
+        dano: null,
+    },
+});
+const completa = (extra = {}) => paginaTabela({ sessao, guild, linhas: [linha(), rui()], periodo: 'mes', ordem: 'pontos', ordens: {}, tipo: 'todas', ...extras(), ...extra });
+
+test('main table: form (last 5) and best win streak', () => {
+    const html = completa();
+    const principal = html.slice(0, html.indexOf('id="ranks"'));
+    assert.match(principal, />Form</);
+    assert.ok(principal.includes('🟩🟩⬜🟩🟩'));
+    assert.match(principal, /title="Current streak: 2V"/);
+    assert.match(principal, />Best streak</);
+});
+
+test('ranks table: Premier rating, change this month, FACEIT level and ELO', () => {
+    const html = completa();
+    const ranks = html.slice(html.indexOf('id="ranks"'), html.indexOf('id="utilitarios"'));
+    for (const valor of ['22 699', '+1 200', '10', '2 100', '−35']) assert.ok(ranks.includes(`<td>${valor}</td>`), valor);
+});
+
+test('sides table: CT and T rating, assists, survival and shots that hit teammates', () => {
+    const html = completa();
+    const lados = html.slice(html.indexOf('id="lados"'), html.indexOf('id="mira"'));
+    for (const valor of ['+5.12', '-1.23', '40', '4.3', '42%', '7']) assert.ok(lados.includes(`<td>${valor}</td>`), valor);
+});
+
+test('duos, maps and records sections', () => {
+    const html = completa();
+    const duosHtml = html.slice(html.indexOf('id="duos"'));
+    assert.match(duosHtml, /Ana<\/a> \+ <a[^>]*>Rui/);
+    assert.ok(duosHtml.includes('<td>2–0–1</td>'));
+    assert.ok(duosHtml.includes('<td>67%</td>'));
+    const mapasHtml = html.slice(html.indexOf('id="mapas"'));
+    assert.match(mapasHtml, /Mirage/);
+    assert.match(mapasHtml, /Rui<\/a> \(1\.31\)/);
+    const recordesHtml = html.slice(html.indexOf('id="recordes"'));
+    assert.match(recordesHtml, /1\.94/);
+    assert.match(recordesHtml, /35 kills/);
+    assert.match(recordesHtml, /Nuke/);
+});
+
+test('empty duos and records explain why', () => {
+    const html = completa({ duos: [], recordes: { hltv: null, kills: null, dano: null } });
+    assert.match(html.slice(html.indexOf('id="duos"')), /No duos yet/);
+});
+
+test('match type filter: links keep the period and sorts, the current one is active', () => {
+    const html = completa({ tipo: 'faceit', periodo: 'mes_passado' });
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;tipo=premier&amp;ordem=pontos[^"]*">Premier/);
+    assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;tipo=faceit&amp;ordem=pontos[^"]*" class="ativo">FACEIT/);
+    assert.match(html, /href="\/s\/g1\?periodo=sempre&amp;tipo=faceit&amp;/);
 });

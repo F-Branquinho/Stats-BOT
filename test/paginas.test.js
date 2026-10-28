@@ -113,7 +113,7 @@ test('the table page honours each table sort and ignores unknown columns', async
     const { url, fechar } = await site();
     try {
         const html = await (await fetch(`${url}/s/g1?ordem=nope&u=heDano&k=k5&m=reacao`)).text();
-        assert.match(html, /ordem=pontos&amp;u=heDano&amp;k=k5&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
+        assert.match(html, /ordem=pontos&amp;r=premier&amp;u=heDano&amp;k=k5&amp;l=ctLeetify&amp;m=reacao#utilitarios" class="ativo">HE dmg/);
         assert.match(html, /class="ativo">Points/);
     } finally {
         fechar();
@@ -129,6 +129,38 @@ test('the table makes no Discord calls: it works even if Discord is unreachable'
         assert.match(await tabela.text(), /Ana/);
         const perfil = await fetch(`${url}/s/g-sem-discord/p/d1`);
         assert.strictEqual(perfil.status, 200);
+    } finally {
+        fechar();
+    }
+});
+
+test('the type filter keeps only those matches; unknown types show everything', async () => {
+    const { url, fechar } = await site();
+    try {
+        assert.match(await (await fetch(`${url}/s/g1?tipo=premier`)).text(), /Ana/);
+        assert.match(await (await fetch(`${url}/s/g1?tipo=faceit`)).text(), /No counted matches/);
+        assert.match(await (await fetch(`${url}/s/g1?tipo=nope`)).text(), /tipo=todas[^"]*" class="ativo">All/);
+    } finally {
+        fechar();
+    }
+});
+
+test('the table page has the duos, maps and records sections', async () => {
+    const { url, fechar } = await site();
+    try {
+        const html = await (await fetch(`${url}/s/g1`)).text();
+        for (const id of ['ranks', 'lados', 'duos', 'mapas', 'recordes']) assert.match(html, new RegExp(`id="${id}"`), id);
+    } finally {
+        fechar();
+    }
+});
+
+test('the profile lists the player maps', async () => {
+    const { url, fechar } = await site();
+    try {
+        const html = await (await fetch(`${url}/s/g1/p/d1`)).text();
+        assert.match(html, /By map/);
+        assert.match(html, /Mirage/);
     } finally {
         fechar();
     }

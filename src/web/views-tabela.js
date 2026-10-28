@@ -5,6 +5,8 @@ const { agoraLisboa } = require('../periodos');
 const { ordenarPor } = require('../leaderboard');
 
 const PERIODOS = [['mes', 'This month'], ['mes_passado', 'Last month'], ['sempre', 'All time']];
+// Match type filter: query value → label (the route maps it to Leetify data sources)
+const TIPOS = [['todas', 'All'], ['premier', 'Premier'], ['competitivo', 'Competitive'], ['faceit', 'FACEIT']];
 const FONTES = { matchmaking: 'Premier', matchmaking_competitive: 'Competitive', faceit: 'FACEIT' };
 
 const percentagem = (v) => `${Math.round(v * 100)}%`;
@@ -19,6 +21,11 @@ const nomeMapa = (mapa) => {
 // Formats for values that can be missing (matches stored before a column existed): shown as "—"
 const ou = (formato) => (v, l) => (typeof v === 'number' ? formato(v, l) : '—');
 const inteiro = ou((v) => String(Math.round(v)));
+// 22699 → "22 699"; changes get a sign: "+1 200", "−35"
+const milhares = (v) => String(Math.round(Math.abs(v))).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const comMilhares = ou((v) => `${v < 0 ? '−' : ''}${milhares(v)}`);
+const variacao = ou((v) => (v > 0 ? `+${milhares(v)}` : v < 0 ? `−${milhares(v)}` : '0'));
+const QUADRADOS = { V: '🟩', D: '🟥', E: '⬜' };
 
 // The tables on the server page. Each one is sorted by its own query parameter.
 // Columns: [key, header, format, lowest first?]
@@ -28,6 +35,8 @@ const TABELAS = [
         colunas: [
             ['partidas', 'Matches', String],
             ['vitorias', 'W–D–L', (_, l) => `${l.vitorias}–${l.empates}–${l.derrotas}`],
+            // Sorted by wins in the last 5; the cell shows them as squares (oldest first)
+            ['forma', 'Form', (_, l) => [...(l.formaTexto ?? '')].map((r) => QUADRADOS[r] ?? '').join(''), false, (l) => `Current streak: ${l.sequenciaAtual}`],
             ['pontos', 'Points', String],
             ['hltv', 'HLTV', decimal],
             ['adr', 'ADR', inteiro],
@@ -35,7 +44,18 @@ const TABELAS = [
             ['kd', 'K/D', decimal],
             ['hs', 'HS%', percentagem],
             ['aim', 'Aim', inteiro],
+            ['melhorSequencia', 'Best streak', String],
             ['leetify', 'Leetify', leetify],
+        ],
+    },
+    {
+        id: 'ranks', param: 'r', padrao: 'premier', titulo: '🏅 Ranks',
+        colunas: [
+            ['premier', 'Premier', comMilhares],
+            ['premierDelta', 'Δ Premier', variacao],
+            ['faceitNivel', 'FACEIT', ou(String)],
+            ['elo', 'ELO', comMilhares],
+            ['eloDelta', 'Δ ELO', variacao],
         ],
     },
     {
@@ -73,6 +93,17 @@ const TABELAS = [
             ['tradedPct', 'Traded %', ou(percentagem)],
             ['clutch', 'Clutch', leetify],
             ['opening', 'Opening', leetify],
+        ],
+    },
+    {
+        id: 'lados', param: 'l', padrao: 'ctLeetify', titulo: '⚖️ Sides and more',
+        colunas: [
+            ['ctLeetify', 'CT', leetify],
+            ['tLeetify', 'T', leetify],
+            ['assistencias', 'Assists', String],
+            ['assistPorPartida', 'Assists/match', ou((v) => v.toFixed(1))],
+            ['sobrevivencia', 'Survived', ou(percentagem)],
+            ['tirosEquipa', 'Team hits', String],
         ],
     },
     {
@@ -127,18 +158,31 @@ function topoServidor(guild, subtitulo) {
 </div>`;
 }
 
+const dataCurta = (iso) => {
+    const { data } = agoraLisboa(new Date(iso));
+    return `${data.slice(8, 10)}/${data.slice(5, 7)}`;
+};
+
 /**
  * `linhas` are leaderboard rows plus { discordId, nome, avatar }. The main table is sorted by `ordem`,
- * the others by `ordens` ({ u, k, m }: utility, multi-kills, aim).
+ * the others by `ordens` (one key per table, see TABELAS). `tipo` is the match type filter.
  * `premios`: Map steam64Id → awards that player is winning (report.premiosPorJogador); empty for all time.
+ * `duos`, `mapas` and `recordes` come from analises.js.
  */
-function paginaTabela({ sessao, guild, linhas, periodo, ordem, ordens = {}, premios = new Map() }) {
+function paginaTabela({
+    sessao, guild, linhas, periodo, ordem, ordens = {}, tipo = 'todas', premios = new Map(), duos = [], mapas = [], recordes = null,
+}) {
     const mensal = periodo !== 'sempre';
-    // Every link keeps the period and the sort of every table
+    // Every link keeps the period, the match type and the sort of every table
     const atuais = Object.fromEntries(TABELAS.map((t) => [t.param, ordemValida(t, t.param === 'ordem' ? ordem : ordens[t.param])]));
     const url = (mudancas = {}, ancora = '') => {
-        const p = { periodo, ...atuais, ...mudancas };
-        return esc(`/s/${guild.id}?periodo=${p.periodo}&${TABELAS.map((t) => `${t.param}=${p[t.param]}`).join('&')}${ancora}`);
+        const p = { periodo, tipo, ...atuais, ...mudancas };
+        return esc(`/s/${guild.id}?periodo=${p.periodo}&tipo=${p.tipo}&${TABELAS.map((t) => `${t.param}=${p[t.param]}`).join('&')}${ancora}`);
+    };
+    const porSteam = new Map(linhas.map((l) => [l.steam64Id, l]));
+    const ligacao = (steam64Id) => {
+        const l = porSteam.get(steam64Id);
+        return l ? `<a href="/s/${esc(guild.id)}/p/${esc(l.discordId)}">${esc(l.nome)}</a>` : esc(steam64Id);
     };
 
     const jogador = (l, comPremios) => {
@@ -156,7 +200,7 @@ function paginaTabela({ sessao, guild, linhas, periodo, ordem, ordens = {}, prem
         const corpo = ordenadas.map((l, i) => `<tr${mensal && !l.elegivel ? ' class="inelegivel"' : ''}>
   <td>${i + 1}</td>
   ${jogador(l, !t.titulo)}
-  ${t.colunas.map(([c, , formato]) => `<td>${esc(formato(l[c], l))}</td>`).join('')}
+  ${t.colunas.map(([c, , formato, , titulo]) => `<td${titulo ? ` title="${esc(titulo(l))}"` : ''}>${esc(formato(l[c], l))}</td>`).join('')}
 </tr>`).join('');
         return `${t.titulo ? `<h2 class="titulo-tabela" id="${t.id}">${t.titulo}</h2>` : ''}<div class="tabela-wrap"><table>
 <thead><tr><th>#</th><th>Player</th>${cabecalhos}</tr></thead>
@@ -165,6 +209,27 @@ function paginaTabela({ sessao, guild, linhas, periodo, ordem, ordens = {}, prem
     }
 
     const periodos = PERIODOS.map(([p, nome]) => `<a href="${url({ periodo: p })}"${p === periodo ? ' class="ativo"' : ''}>${nome}</a>`).join('');
+    const tipos = TIPOS.map(([t, nome]) => `<a href="${url({ tipo: t })}"${t === tipo ? ' class="ativo"' : ''}>${nome}</a>`).join('');
+
+    const cartaoRecorde = (r, titulo, texto) => (r
+        ? `<div class="cartao"><h3>${titulo}</h3><p>${texto(r)} · ${ligacao(r.steam64Id)} · ${esc(nomeMapa(r.mapa))} · ${esc(dataCurta(r.quando))}</p></div>`
+        : '');
+    const temRecordes = recordes && (recordes.hltv || recordes.kills || recordes.dano);
+    const seccaoRecordes = `<h2 class="titulo-tabela" id="recordes">📈 Records</h2>${temRecordes ? `<div class="cartoes">
+  ${cartaoRecorde(recordes.hltv, 'Best match', (r) => `HLTV ${r.valor.toFixed(2)}`)}
+  ${cartaoRecorde(recordes.kills, 'Most kills', (r) => `${r.valor} kills`)}
+  ${cartaoRecorde(recordes.dano, 'Most damage', (r) => `${milhares(r.valor)} damage`)}
+</div>` : '<p class="suave">No records in this period yet.</p>'}`;
+
+    const seccaoDuos = `<h2 class="titulo-tabela" id="duos">🤝 Duos</h2>${duos.length ? `<div class="tabela-wrap"><table>
+<thead><tr><th>Duo</th><th>Matches</th><th>W–D–L</th><th>Win %</th><th>HLTV</th></tr></thead>
+<tbody>${duos.map((d) => `<tr><td class="jogador">${ligacao(d.a)} + ${ligacao(d.b)}</td><td>${d.partidas}</td><td>${d.vitorias}–${d.empates}–${d.derrotas}</td><td>${percentagem(d.pctVitorias)}</td><td>${d.hltv.toFixed(2)}</td></tr>`).join('')}</tbody>
+</table></div>` : '<p class="suave">No duos yet: two linked players need at least 2 matches together on the same team (matches collected from v0.10 on).</p>'}`;
+
+    const seccaoMapas = `<h2 class="titulo-tabela" id="mapas">🗺️ Maps</h2>${mapas.length ? `<div class="tabela-wrap"><table>
+<thead><tr><th>Map</th><th>Matches</th><th>Win %</th><th>HLTV</th><th>Best player (3+ matches)</th></tr></thead>
+<tbody>${mapas.map((m) => `<tr><td class="jogador">${esc(nomeMapa(m.mapa))}</td><td>${m.partidas}</td><td>${percentagem(m.pctVitorias)}</td><td>${m.hltv.toFixed(2)}</td><td>${m.melhor ? `${ligacao(m.melhor.steam64Id)} (${m.melhor.hltv.toFixed(2)})` : '—'}</td></tr>`).join('')}</tbody>
+</table></div>` : '<p class="suave">No maps in this period yet.</p>'}`;
     const vazio = `<div class="cartao"><p>No counted matches in this period yet.</p>
   <p class="suave">To show up here, <a href="/link">link your Steam account</a> and play Premier, Competitive or FACEIT. New matches are fetched every 30 minutes from 16:00 to 04:00.</p></div>`;
     const [principal, ...outras] = TABELAS;
@@ -173,18 +238,22 @@ function paginaTabela({ sessao, guild, linhas, periodo, ordem, ordens = {}, prem
 ${cabecalho(sessao)}
 ${topoServidor(guild, `CS2 stats · ${nomePeriodo(periodo)}`)}
 <nav class="periodos">${periodos}</nav>
+<nav class="periodos">${tipos}</nav>
 ${linhas.length ? renderTabela(principal) : vazio}
 ${mensal && linhas.length ? `<p class="legenda">${periodo === 'mes' ? 'Leading this month' : 'Winners'}: ${LEGENDA}</p>` : ''}
 <p class="ajuda">Points per match: win 3, draw 1, loss 0, plus 0–5 for the HLTV 1.0 rating (0.80 → 1, 0.95 → 2, 1.05 → 3, 1.20 → 4, 1.40 → 5).
 MVP of the month: most points with at least 5 matches. Aim, Clutch and Opening are the current Leetify ratings.</p>
 ${linhas.length ? outras.map(renderTabela).join('\n') : ''}
+${linhas.length ? [seccaoRecordes, seccaoDuos, seccaoMapas].join('\n') : ''}
 ${linhas.length ? `<p class="ajuda">Flash % and TF % are enemies and teammates blinded per flash thrown (one flash can blind several people, so they can go over 100%).
 Blind time is the average per enemy flashed. Unused util is the average value of grenades still held when dying.
 Trade % is how often a trade attempt worked; Traded % is how often a teammate avenged the death.
+Form is the last 5 results (🟩 win, ⬜ draw, 🟥 loss); Δ Premier and Δ ELO are the change in the period, from daily snapshots.
+CT and T are the Leetify rating on each side; Team hits are bullets that hit teammates.
 Leetify doesn't give molotov damage or 1vX clutches. "—" means no data yet for matches stored before that column existed.</p>` : ''}`, { larga: true });
 }
 
-function paginaPerfil({ sessao, guild, jogador, total, meses, partidas }) {
+function paginaPerfil({ sessao, guild, jogador, total, meses, partidas, mapas = { mapas: [], melhor: null, pior: null } }) {
     const resumo = total
         ? `<div class="cartoes">
   <div class="cartao"><h3>${total.pontos} points</h3><p>${total.partidas} matches · ${total.vitorias}–${total.empates}–${total.derrotas}</p></div>
@@ -218,6 +287,9 @@ ${cabecalho(sessao)}
 ${resumo}
 <div class="secao"><h2>By month</h2>
 ${meses.length ? `<div class="tabela-wrap"><table><thead><tr><th>Month</th><th>Matches</th><th>W–D–L</th><th>Points</th><th>HLTV</th></tr></thead><tbody>${linhasMeses}</tbody></table></div>` : '<p class="suave">Nothing yet.</p>'}
+</div>
+<div class="secao"><h2>By map</h2>
+${mapas.mapas.length ? `<div class="tabela-wrap"><table><thead><tr><th>Map</th><th>Matches</th><th>W–D–L</th><th>Win %</th><th>HLTV</th></tr></thead><tbody>${mapas.mapas.map((m) => `<tr><td>${esc(nomeMapa(m.mapa))}${m.mapa === mapas.melhor ? ' <span class="nota">best map</span>' : ''}${m.mapa === mapas.pior ? ' <span class="nota">worst map</span>' : ''}</td><td>${m.partidas}</td><td>${m.vitorias}–${m.empates}–${m.derrotas}</td><td>${percentagem(m.pctVitorias)}</td><td>${decimal(m.hltv)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="suave">Nothing yet.</p>'}
 </div>
 <div class="secao"><h2>Last matches</h2>
 ${partidas.length ? `<div class="tabela-wrap"><table><thead><tr><th>When</th><th>Map</th><th>Score</th><th>K–D</th><th>HLTV</th><th>Points</th></tr></thead><tbody>${linhasPartidas}</tbody></table></div>` : '<p class="suave">Nothing yet.</p>'}

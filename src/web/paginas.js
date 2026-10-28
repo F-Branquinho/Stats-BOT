@@ -5,6 +5,8 @@ const { definicoes } = require('../commands');
 const { tabela, porMes } = require('../leaderboard');
 const { temPermissao } = require('../membros');
 const { escolherVencedores, premiosPorJogador } = require('../report');
+const { intervalo } = require('../periodos');
+const { duos, mapas, mapasJogador, recordes } = require('../analises');
 const views = require('./views');
 const { TABELAS, ordemValida, paginaTabela, paginaPerfil } = require('./views-tabela');
 
@@ -12,6 +14,8 @@ const TIPOS_TEXTO = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
 const PERIODOS = new Set(['mes', 'mes_passado', 'sempre']);
 const { ViewChannel, SendMessages, ManageGuild } = PermissionFlagsBits;
 const ULTIMAS_PARTIDAS = 20;
+// Match type filter → Leetify data sources (null: all counted types)
+const FONTES = { todas: null, premier: ['matchmaking'], competitivo: ['matchmaking_competitive'], faceit: ['faceit'] };
 
 function canaisDeTexto(guild) {
     return [...guild.channels.cache.values()]
@@ -84,15 +88,23 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
             // Each table has its own sort parameter (ordem, u, k, m); unknown columns fall back to the default
             const ordens = Object.fromEntries(TABELAS.map((t) => [t.param, ordemValida(t, req.query[t.param])]));
             const { ordem } = ordens;
+            const tipo = Object.hasOwn(FONTES, req.query.tipo) ? req.query.tipo : 'todas';
+            const fontes = FONTES[tipo];
 
             const jogadores = jogadoresLigados();
-            const linhas = tabela(db, [...jogadores.keys()], periodo).map((l) => {
+            const ids = [...jogadores.keys()];
+            const linhas = tabela(db, ids, periodo, undefined, { fontes }).map((l) => {
                 const j = jogadores.get(l.steam64Id);
                 return { ...l, discordId: j.discord_id, nome: j.name ?? j.discord_id, avatar: j.avatar };
             });
             // Awards are monthly: who is leading this month, or who won last month
             const premios = periodo === 'sempre' ? new Map() : premiosPorJogador(escolherVencedores(linhas));
-            res.send(paginaTabela({ sessao: req.sessao, guild, linhas, periodo, ordem, ordens, premios }));
+            const { desde, ate } = intervalo(periodo);
+            const partidas = db.partidasDe(ids, desde, ate, fontes);
+            res.send(paginaTabela({
+                sessao: req.sessao, guild, linhas, periodo, ordem, ordens, tipo, premios,
+                duos: duos(partidas), mapas: mapas(partidas), recordes: recordes(partidas),
+            }));
         } catch (error) {
             next(error);
         }
@@ -113,6 +125,7 @@ function registar(app, { cliente, db, obterSessao, exigirSessao, exigirCsrf, cam
                 jogador: { nome: j.name ?? j.discord_id, avatar: j.avatar, discordId: j.discord_id, steam64Id: j.steam64_id },
                 total: tabela(db, [j.steam64_id], 'sempre')[0] ?? null,
                 meses: porMes(partidas),
+                mapas: mapasJogador(partidas),
                 partidas: partidas.slice(0, ULTIMAS_PARTIDAS),
             }));
         } catch (error) {

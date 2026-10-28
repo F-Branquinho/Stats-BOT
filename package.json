@@ -1,6 +1,6 @@
 {
   "name": "stats-bot",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "Discord bot and website with CS2 stats leaderboards for your server, powered by Leetify",
   "main": "src/index.js",

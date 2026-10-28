@@ -2,6 +2,17 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.10.0
+
+- **Match type filter** on the server page: All, Premier, Competitive or FACEIT, for every table and section.
+- **Form** (last 5 results as 🟩⬜🟥, with the current streak on hover) and **best win streak** in the main table.
+- **🏅 Ranks** table: Premier rating, FACEIT level and ELO, and how much they moved in the period (from a daily snapshot the bot now keeps).
+- **⚖️ Sides and more** table: Leetify rating on CT and T, assists, % of rounds survived and bullets that hit teammates.
+- **📈 Records**: best match (HLTV), most kills and most damage in a single match in the period.
+- **🤝 Duos**: pairs of linked players who played together on the same team, with W/D/L, win % and average HLTV (2+ matches together).
+- **🗺️ Maps**: matches, win % and HLTV per map, with the best player on each (3+ matches); the player profile also lists their maps, with the best and worst one.
+- The database is upgraded automatically (v4). Duos and sides need the team and side data, which matches get the next time Leetify sends them (its last 100).
+
 ## v0.9.0
 
 - The table no longer asks Discord who is a member of the server, which made it take ~5 s to load every 10 minutes. It now shows every linked player and loads right away; the same goes for `/top`, `/mvp` and the monthly report.
