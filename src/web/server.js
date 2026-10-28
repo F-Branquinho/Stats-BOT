@@ -6,6 +6,7 @@ const settings = require('../settings');
 const { urlConvite, PERMISSOES_CONVITE } = require('../commands');
 const { agoraLisboa } = require('../periodos');
 const steam = require('./steam');
+const { chaveValida: chaveFaceitValida } = require('../faceit');
 const views = require('./views');
 const paginas = require('./paginas');
 
@@ -183,6 +184,7 @@ function iniciarPainel(bot, { db, recolha }) {
             clientSecret: !atuais.clientSecret,
             publicUrl: !atuais.publicUrl,
             leetifyKey: !atuais.leetifyKey,
+            faceitKey: !atuais.faceitKey,
         };
     }
 
@@ -217,6 +219,7 @@ function iniciarPainel(bot, { db, recolha }) {
             const segredo = mostrar.clientSecret ? campo(req, 'clientSecret') : atuais.clientSecret;
             const publicUrl = mostrar.publicUrl ? campo(req, 'publicUrl').replace(/\/+$/, '') : atuais.publicUrl;
             const leetifyKey = mostrar.leetifyKey ? campo(req, 'leetifyKey') : '';
+            const faceitKey = mostrar.faceitKey ? campo(req, 'faceitKey') : '';
             const responder = (status, erros) => res.status(status).send(renderSetup(req, { erros, publicUrl }));
 
             if (!iguais(campo(req, 'code').toUpperCase(), settings.codigoSetup())) {
@@ -229,6 +232,9 @@ function iniciarPainel(bot, { db, recolha }) {
             if (!segredo) erros.push('Paste the OAuth2 client secret.');
             if (!settings.urlValido(publicUrl)) erros.push('The public address must look like https://stats.example.com');
             if (erros.length) return responder(400, erros);
+            if (faceitKey && !await chaveFaceitValida(faceitKey)) {
+                return responder(400, ['The FACEIT API key is invalid. Copy a server-side key from developers.faceit.com, or leave it empty.']);
+            }
 
             const aplicacao = await aplicacaoDoToken(token);
             if (!aplicacao) return responder(400, ['The bot token is invalid. Get a new one in Developer Portal → Bot → Reset Token.']);
@@ -249,6 +255,7 @@ function iniciarPainel(bot, { db, recolha }) {
                 ...(mostrar.clientSecret && { clientSecret: segredo }),
                 ...(mostrar.publicUrl && { publicUrl }),
                 ...(leetifyKey && { leetifyKey }),
+                ...(faceitKey && { faceitKey }),
             });
             settings.apagarCodigoSetup();
             bot.estado.recuperacao = false;
@@ -436,7 +443,7 @@ function iniciarPainel(bot, { db, recolha }) {
     // ---- Bot settings (owner only)
 
     function renderDefinicoes(sessao, { erros = [], guardado = false, publicUrl, orcamento } = {}) {
-        const origens = Object.fromEntries(['botToken', 'clientSecret', 'publicUrl', 'leetifyKey', 'orcamentoDiario'].map((c) => [c, settings.origem(c)]));
+        const origens = Object.fromEntries(['botToken', 'clientSecret', 'publicUrl', 'leetifyKey', 'faceitKey', 'orcamentoDiario'].map((c) => [c, settings.origem(c)]));
         return views.paginaDefinicoes({
             sessao,
             origens,
@@ -460,12 +467,18 @@ function iniciarPainel(bot, { db, recolha }) {
             const leetifyEnv = settings.origem('leetifyKey') === 'env';
             const novaChave = leetifyEnv ? '' : campo(req, 'leetifyKey');
             const removerChave = !leetifyEnv && req.body.removeLeetifyKey === 'on';
+            const faceitEnv = settings.origem('faceitKey') === 'env';
+            const novaFaceit = faceitEnv ? '' : campo(req, 'faceitKey');
+            const removerFaceit = !faceitEnv && req.body.removeFaceitKey === 'on';
             const orcamentoEnv = settings.origem('orcamentoDiario') === 'env';
             const orcamento = orcamentoEnv ? settings.obter().orcamentoDiario : settings.orcamentoValido(campo(req, 'dailyBudget'));
             const responder = (erros) => res.status(400).send(renderDefinicoes(req.sessao, { erros, publicUrl, orcamento: campo(req, 'dailyBudget') }));
 
             if (!settings.urlValido(publicUrl)) return responder(['The public address must look like https://stats.example.com']);
             if (!orcamento) return responder(['Requests per day must be a whole number above 0.']);
+            if (novaFaceit && !await chaveFaceitValida(novaFaceit)) {
+                return responder(['The FACEIT API key is invalid. Copy a server-side key from developers.faceit.com.']);
+            }
 
             let applicationId = cliente().application.id;
             if (novoToken) {
@@ -493,6 +506,8 @@ function iniciarPainel(bot, { db, recolha }) {
                 ...(settings.origem('publicUrl') !== 'env' && { publicUrl }),
                 ...(novaChave && { leetifyKey: novaChave }),
                 ...(removerChave && !novaChave && { leetifyKey: null }),
+                ...(novaFaceit && { faceitKey: novaFaceit }),
+                ...(removerFaceit && !novaFaceit && { faceitKey: null }),
                 ...(!orcamentoEnv && { orcamentoDiario: orcamento }),
             });
             console.log(`⚙ Bot settings changed by ${req.sessao.nome} (${req.sessao.userId})`);

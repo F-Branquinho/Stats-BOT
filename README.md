@@ -8,6 +8,7 @@ It runs 24/7 in a Proxmox LXC (or Docker) and is published to the internet throu
 
 - Players open the website, log in with Discord and **sign in through Steam**. They need a Leetify account with a **public profile** (Leetify → Settings → Privacy). Leetify answers the same way for private and missing profiles, so the site shows "not found or private" for both.
 - Every 30 minutes from **16:00 to 04:00** (Lisbon) the bot asks Leetify for each linked player's latest matches and stores the new ones in SQLite (`data/stats.db`). Leetify only returns the last 100 matches, so the history is kept by the bot.
+- With a **FACEIT API key**, the bot also fetches each player's last 20 FACEIT matches from FACEIT, for the ones Leetify doesn't have. The same match from both sources is stored once (Leetify's version wins).
 - Only **Premier, Competitive and FACEIT** matches count. Wingman, pro demos, matches with a banned player and matches under 10 rounds are stored but left out of the stats.
 - The tables show every linked player (the stats are public). Admins take players off with `/remove`.
 
@@ -67,6 +68,8 @@ Replies use the server's language. Commands never ping anyone.
 ## Before you install
 
 **Discord** ([Developer Portal](https://discord.com/developers/applications)): create a new application (for example in your team). No privileged intents are needed. You'll paste the bot token and the OAuth2 client secret on the setup page.
+
+**FACEIT** (optional, recommended if you play FACEIT): a free server-side API key from [developers.faceit.com](https://developers.faceit.com) (App Studio → create an app → API Keys → Server side). Leetify only has the FACEIT matches of players who linked FACEIT on Leetify; with this key the bot fetches the rest from FACEIT, plus the FACEIT level and ELO.
 
 **Leetify** (optional): a free API key from [leetify.com/app/developer](https://leetify.com/app/developer). Without it the public rate limits apply; the bot also stops for the day after `LEETIFY_DAILY_BUDGET` requests (3000 by default) and waits when Leetify answers 429.
 
@@ -168,6 +171,7 @@ The setup page saves its values in `data/settings.json` (readable only by the bo
 | `PUBLIC_URL` | | Public address of the site, e.g. `https://stats.yourdomain.com` |
 | `LEETIFY_API_KEY` | | Optional Leetify API key |
 | `LEETIFY_DAILY_BUDGET` | `3000` | Maximum Leetify requests per day |
+| `FACEIT_API_KEY` | | Optional FACEIT Data API key (server side) |
 | `DATA_DIR` | `./data` | Where the database and settings live |
 | `WEB_PORT` | `3000` | Site port |
 | `WEB_HOST` | `0.0.0.0` | Interface the site listens on |

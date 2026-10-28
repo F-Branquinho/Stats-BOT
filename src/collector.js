@@ -20,6 +20,8 @@ function criarRecolha({ db, leetify, faceit = null, esperar = dormir, agora = ()
     let emPausaAte = null;
     let orcamentoEsgotado = false;
     let emCurso = null;
+    // `faceit` can be a function, so a key added on the settings page applies without a restart
+    const clienteFaceit = () => (typeof faceit === 'function' ? faceit() : faceit);
 
     // Waits between requests, but not before the first one of a run
     function ritmo() {
@@ -36,6 +38,7 @@ function criarRecolha({ db, leetify, faceit = null, esperar = dormir, agora = ()
      * FACEIT level and ELO once a day. Errors are logged and never stop the run. Returns how many were new.
      */
     async function recolherFaceit(jogador, pedir, statsDaRecolha) {
+        const faceit = clienteFaceit();
         if (!faceit) return 0;
         const s = jogador.steam64_id;
         try {
@@ -115,7 +118,7 @@ function criarRecolha({ db, leetify, faceit = null, esperar = dormir, agora = ()
         for (const jogador of db.jogadoresLigados()) {
             // Missing or private Leetify profiles are only retried once a day (FACEIT still runs)
             const saltarLeetify = jogador.leetify_status !== 'ok' && !antigo(jogador.last_fetched_at, agora());
-            if (saltarLeetify && !faceit) continue;
+            if (saltarLeetify && !clienteFaceit()) continue;
             try {
                 resultado.novas += await recolher(jogador, pedir, { saltarLeetify, statsDaRecolha });
                 resultado.jogadores++;

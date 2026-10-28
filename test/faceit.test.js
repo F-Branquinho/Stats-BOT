@@ -75,3 +75,16 @@ test('other FACEIT errors are thrown with the status', async () => {
     const { faceit } = preparar([resposta(503, {})]);
     await assert.rejects(faceit.historico(PLAYER), /503/);
 });
+
+test('chaveValida asks FACEIT once: 400/401/403 means a wrong key', async () => {
+    const { chaveValida } = require('../src/faceit');
+    const pedidos = [];
+    const fetch = (status) => async (url, opcoes) => { pedidos.push({ url, opcoes }); return resposta(status, {}); };
+    assert.strictEqual(await chaveValida('boa', { fetch: fetch(200) }), true);
+    assert.strictEqual(pedidos[0].opcoes.headers.Authorization, 'Bearer boa');
+    assert.strictEqual(await chaveValida('ma', { fetch: fetch(401) }), false);
+    assert.strictEqual(await chaveValida('ma', { fetch: fetch(403) }), false);
+    // A malformed key gets a 400 from the real API
+    assert.strictEqual(await chaveValida('ma', { fetch: fetch(400) }), false);
+    await assert.rejects(chaveValida('x', { fetch: fetch(503) }), /503/);
+});

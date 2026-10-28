@@ -13,6 +13,7 @@ const VARIAVEIS = {
     clientSecret: 'DISCORD_CLIENT_SECRET',
     publicUrl: 'PUBLIC_URL',
     leetifyKey: 'LEETIFY_API_KEY',
+    faceitKey: 'FACEIT_API_KEY',
     orcamentoDiario: 'LEETIFY_DAILY_BUDGET',
 };
 const ORCAMENTO_POR_OMISSAO = 3000;
@@ -47,7 +48,7 @@ function orcamentoValido(valor) {
     return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-/** @returns {{ botToken: string | null, clientSecret: string | null, publicUrl: string | null, leetifyKey: string | null, orcamentoDiario: number }} */
+/** @returns {{ botToken: string | null, clientSecret: string | null, publicUrl: string | null, leetifyKey: string | null, faceitKey: string | null, orcamentoDiario: number }} */
 function obter() {
     const valor = (campo) => doEnv(campo) ?? guardadas[campo] ?? null;
     return {
@@ -55,6 +56,7 @@ function obter() {
         clientSecret: valor('clientSecret'),
         publicUrl: valor('publicUrl')?.replace(/\/+$/, '') ?? null,
         leetifyKey: valor('leetifyKey'),
+        faceitKey: valor('faceitKey'),
         orcamentoDiario: orcamentoValido(valor('orcamentoDiario')) ?? ORCAMENTO_POR_OMISSAO,
     };
 }

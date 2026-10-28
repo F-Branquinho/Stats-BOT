@@ -238,3 +238,13 @@ test('without a FACEIT client nothing is asked to FACEIT', async () => {
     const recolha = criarRecolha({ db, leetify: { partidas: async () => [], perfil: async () => ({}) }, esperar: async () => {}, agora: () => AGORA });
     assert.strictEqual((await recolha.recolherTudo()).novas, 0);
 });
+
+test('the FACEIT client can be a function, so adding the key later works without a restart', async () => {
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd0', steam64Id: 's1', nome: 's1' });
+    let cliente = null;
+    const recolha = criarRecolha({ db, leetify: { partidas: async () => [], perfil: async () => ({}) }, faceit: () => cliente, esperar: async () => {}, agora: () => AGORA });
+    assert.strictEqual((await recolha.recolherTudo()).novas, 0);
+    cliente = faceitFalso();
+    assert.strictEqual((await recolha.recolherTudo()).novas, 1);
+});

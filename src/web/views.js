@@ -356,6 +356,10 @@ ${campos.leetifyKey ? `
   <label for="leetifyKey">Leetify API key (optional)</label>
   <input id="leetifyKey" name="leetifyKey" type="password" spellcheck="false">
   <div class="ajuda">Raises Leetify's rate limits. Get one for free at <a href="https://leetify.com/app/developer" target="_blank" rel="noopener">leetify.com/app/developer</a>. You can add it later in Bot settings.</div>` : ''}
+${campos.faceitKey ? `
+  <label for="faceitKey">FACEIT API key (optional)</label>
+  <input id="faceitKey" name="faceitKey" type="password" spellcheck="false">
+  <div class="ajuda">Fetches the FACEIT matches Leetify doesn't have, and the FACEIT level and ELO. Free at <a href="https://developers.faceit.com" target="_blank" rel="noopener">developers.faceit.com</a> (App Studio → your app → API Keys → Server side). You can add it later in Bot settings.</div>` : ''}
 
   <p style="margin-top:20px"><button class="botao" type="submit">Connect</button></p>
 </form>`);
@@ -400,6 +404,11 @@ ${alertas('erro', erros)}
   ${origens.leetifyKey === 'env' ? doEnv : `<input id="leetifyKey" name="leetifyKey" type="password" placeholder="${origens.leetifyKey ? 'Leave empty to keep the current one' : 'Optional'}" spellcheck="false">
   ${origens.leetifyKey ? '<label class="caixa"><input type="checkbox" name="removeLeetifyKey"> Remove the saved key</label>' : ''}
   <div class="ajuda">Free at <a href="https://leetify.com/app/developer" target="_blank" rel="noopener">leetify.com/app/developer</a>; raises the rate limits.</div>`}
+
+  <label for="faceitKey">FACEIT API key</label>
+  ${origens.faceitKey === 'env' ? doEnv : `<input id="faceitKey" name="faceitKey" type="password" placeholder="${origens.faceitKey ? 'Leave empty to keep the current one' : 'Optional'}" spellcheck="false">
+  ${origens.faceitKey ? '<label class="caixa"><input type="checkbox" name="removeFaceitKey"> Remove the saved key</label>' : ''}
+  <div class="ajuda">Fetches the FACEIT matches Leetify doesn't have, and the FACEIT level and ELO. Free at <a href="https://developers.faceit.com" target="_blank" rel="noopener">developers.faceit.com</a> (server-side key).</div>`}
 
   <label for="dailyBudget">Leetify requests per day</label>
   ${origens.orcamentoDiario === 'env' ? `<p><code>${esc(orcamento)}</code></p>${doEnv}` : `<input id="dailyBudget" name="dailyBudget" type="number" min="1" step="1" required value="${esc(orcamento)}">

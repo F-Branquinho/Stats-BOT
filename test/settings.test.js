@@ -39,3 +39,16 @@ test('an invalid budget falls back to 3000', () => {
         delete process.env.LEETIFY_DAILY_BUDGET;
     }
 });
+
+test('FACEIT key: none by default, from the panel or from .env', () => {
+    assert.strictEqual(settings.obter().faceitKey, null);
+    settings.guardar({ faceitKey: 'fk' });
+    assert.strictEqual(settings.obter().faceitKey, 'fk');
+    process.env.FACEIT_API_KEY = 'env-fk';
+    try {
+        assert.strictEqual(settings.obter().faceitKey, 'env-fk');
+        assert.strictEqual(settings.origem('faceitKey'), 'env');
+    } finally {
+        delete process.env.FACEIT_API_KEY;
+    }
+});

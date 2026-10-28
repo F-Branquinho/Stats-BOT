@@ -2,6 +2,15 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.11.0
+
+- **FACEIT as a second source.** With a FACEIT API key (setup page, Bot settings or `FACEIT_API_KEY`), the bot also fetches each linked player's last 20 FACEIT CS2 matches, for the ones Leetify doesn't have (Leetify only gets FACEIT matches when the player linked FACEIT on Leetify).
+  - The same match from Leetify and from FACEIT is stored once; Leetify's version wins, since it has more stats.
+  - FACEIT-only matches have kills, deaths, assists, headshots, damage (ADR), multi-kills, MVPs and flashes, and count for points and the MVP. The HLTV 1.0 rating is computed from them.
+  - The FACEIT level and ELO now come from FACEIT.
+  - The key is checked with FACEIT before it is saved.
+- The database is upgraded automatically (v5).
+
 ## v0.10.0
 
 - **Match type filter** on the server page: All, Premier, Competitive or FACEIT, for every table and section.

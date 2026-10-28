@@ -189,3 +189,16 @@ test('match type filter: links keep the period and sorts, the current one is act
     assert.match(html, /href="\/s\/g1\?periodo=mes_passado&amp;tipo=faceit&amp;ordem=pontos[^"]*" class="ativo">FACEIT/);
     assert.match(html, /href="\/s\/g1\?periodo=sempre&amp;tipo=faceit&amp;/);
 });
+
+test('setup and bot settings pages have the FACEIT key field', () => {
+    const { paginaSetup, paginaDefinicoes } = require('../src/web/views');
+    const setup = paginaSetup({ campos: { botToken: true, clientSecret: true, publicUrl: true, leetifyKey: true, faceitKey: true }, publicUrl: '', recuperacao: false, botLigado: false, erros: [] });
+    assert.match(setup, /name="faceitKey"/);
+    assert.match(setup, /developers\.faceit\.com/);
+    const base = { sessao, publicUrl: 'https://s.example.com', orcamento: 3000, botNome: 'Bot#1', erros: [], guardado: false };
+    const guardada = paginaDefinicoes({ ...base, origens: { faceitKey: 'panel' } });
+    assert.match(guardada, /name="faceitKey"/);
+    assert.match(guardada, /name="removeFaceitKey"/);
+    const doEnv = paginaDefinicoes({ ...base, origens: { faceitKey: 'env' } });
+    assert.ok(!doEnv.includes('name="faceitKey"'));
+});

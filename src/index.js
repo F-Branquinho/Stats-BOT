@@ -4,6 +4,7 @@ const settings = require('./settings');
 const { abrirBD } = require('./db');
 const { criarLeetify } = require('./leetify');
 const { criarRecolha } = require('./collector');
+const { criarFaceit } = require('./faceit');
 const { agoraLisboa } = require('./periodos');
 const { iniciarAgendador, relatoriosPendentes } = require('./scheduler');
 const { enviarRelatorios } = require('./envio');
@@ -19,7 +20,9 @@ function arrancar() {
         orcamento: () => settings.obter().orcamentoDiario,
         hoje: () => agoraLisboa().data,
     });
-    const recolha = criarRecolha({ db, leetify });
+    const faceit = criarFaceit({ chave: () => settings.obter().faceitKey });
+    // FACEIT only runs once a key is set (on the setup or settings page, or in .env)
+    const recolha = criarRecolha({ db, leetify, faceit: () => (settings.obter().faceitKey ? faceit : null) });
     definirBD(db, recolha, leetify);
 
     const bot = require('./bot');

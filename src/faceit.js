@@ -38,6 +38,17 @@ function criarFaceit({ fetch = globalThis.fetch, chave }) {
     };
 }
 
+/** Whether a FACEIT key works (checked on the setup and settings pages before saving it). */
+async function chaveValida(chave, { fetch = globalThis.fetch } = {}) {
+    const res = await fetch(`${API}/games?offset=0&limit=1`, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${chave}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if ([400, 401, 403].includes(res.status)) return false;
+    if (!res.ok) throw new Error(`FACEIT answered ${res.status}`);
+    return true;
+}
+
 /**
  * A FACEIT match (history item + match stats) as a Leetify-shaped { match, stats } for one player,
  * or null if the player isn't in the stats.
@@ -86,4 +97,4 @@ function converterPartida(item, statsPartida, playerId, steam64Id) {
     };
 }
 
-module.exports = { criarFaceit, converterPartida };
+module.exports = { criarFaceit, converterPartida, chaveValida };
