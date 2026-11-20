@@ -14,7 +14,7 @@ It runs 24/7 in a Proxmox LXC (or Docker) and is published to the internet throu
 
 ### Points and MVP
 
-Each counted match gives **result points + rating bonus**:
+Each counted match gives **result points + rating bonus + solo bonus**:
 
 | Result | Win | Draw | Loss |
 |---|---|---|---|
@@ -23,6 +23,8 @@ Each counted match gives **result points + rating bonus**:
 | HLTV Rating 1.0 | < 0.80 | 0.80–0.95 | 0.95–1.05 | 1.05–1.20 | 1.20–1.40 | ≥ 1.40 |
 |---|---|---|---|---|---|---|
 | Bonus | 0 | 1 | 2 | 3 | 4 | 5 |
+
+**Solo bonus: +1** when no other player from the table was on your team in that match. The bot only knows linked players, so playing with a friend who isn't linked still counts as solo. The main table's **Solo** column shows how many solo matches each player has.
 
 The HLTV Rating 1.0 is computed from Leetify's kills, deaths, rounds and multi-kills (Leetify doesn't give KAST, which 2.0/3.0 need).
 

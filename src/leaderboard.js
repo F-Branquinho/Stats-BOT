@@ -125,7 +125,9 @@ function resumir(steam64Id, partidas, perfil, mensal, rank = null) {
         vitorias: partidas.filter((p) => p.result === 'V').length,
         empates: partidas.filter((p) => p.result === 'E').length,
         derrotas: partidas.filter((p) => p.result === 'D').length,
-        pontos: soma('points'),
+        // +1 point for each match played solo (no linked player on the team)
+        pontos: soma('points') + soma('sozinho'),
+        solo: soma('sozinho'),
         hltv: arredondar(dividir(soma('hltv_rating'), partidas.length)),
         kills,
         deaths,

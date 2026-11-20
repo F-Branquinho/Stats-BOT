@@ -210,3 +210,19 @@ test('bot settings has a "Collect now" button', () => {
     assert.match(html, /Collect now/);
     assert.match(html, /Collection started/);
 });
+
+test('main table has a Solo column and the points rule mentions the solo bonus', () => {
+    const html = pagina({ linhas: [linha({ solo: 4 })] });
+    const principal = html.slice(0, html.indexOf('id="ranks"'));
+    assert.match(principal, /ordem=solo[^"]*">Solo</);
+    assert.ok(principal.includes('<td>4</td>'));
+    assert.match(html, /\+1 for each match played solo/);
+});
+
+test('profile: a solo match shows its points with the bonus and a marker', () => {
+    const html = paginaPerfil({
+        sessao, guild, jogador: { nome: 'Ana', avatar: null, discordId: 'd1', steam64Id: 's1' }, total: linha(), meses: [],
+        partidas: [{ finished_at: '2026-10-20T21:00:00.000Z', map_name: 'de_mirage', result: 'V', rounds_won: 13, rounds_lost: 9, kills: 25, deaths: 15, hltv_rating: 1.31, points: 7, sozinho: 1, data_source: 'faceit' }],
+    });
+    assert.match(html, /<td>8 <span class="nota" title="Played solo: \+1">solo<\/span><\/td>/);
+});

@@ -335,3 +335,22 @@ test('linking a different Steam account forgets the old FACEIT account', () => {
     db.ligarJogador({ discordId: 'd1', steam64Id: 's2', nome: 'Ana' });
     assert.strictEqual(db.jogador('d1').faceit_id, null);
 });
+
+test('sozinho: no other linked player on the same team in that match', () => {
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
+    db.ligarJogador({ discordId: 'd2', steam64Id: 's2', nome: 'Rui' });
+    const partida = (id, steam64Id, team) => db.guardarPartida(
+        { ...premier, id },
+        { ...stats(premier, steam64Id), initial_team_number: team },
+    );
+    partida('sozinha', 's1', 2);
+    partida('juntos', 's1', 2); partida('juntos', 's2', 2);
+    partida('contra', 's1', 2); partida('contra', 's2', 3);
+    // Old matches without team data: two linked players in the same match count as together
+    partida('antiga', 's1', null); partida('antiga', 's2', null);
+    // A player who isn't linked (e.g. removed with /remove) doesn't count as company
+    partida('desligado', 's1', 2); partida('desligado', 's9', 2);
+    const sozinho = Object.fromEntries(db.partidasDe(['s1'], null, null).map((p) => [p.match_id, p.sozinho]));
+    assert.deepStrictEqual(sozinho, { sozinha: 1, juntos: 0, contra: 1, antiga: 0, desligado: 1 });
+});

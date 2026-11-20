@@ -63,7 +63,7 @@ const IDIOMAS = {
             categorias: { kills: 'kills', adr: 'ADR', aim: 'aim (precisão)', hs: 'HS%', flashes: 'inimigos cegos', flashpct: 'Flash %', teamflash: 'team flashes', hedmg: 'dano de HE', ace: 'ACEs', k3: '3K', tradepct: 'trade %', matches: 'partidas' },
             ajuda: [
                 '**Stats BOT** — estatísticas de CS2 do servidor, a partir da Leetify.',
-                'Cada partida dá pontos: vitória 3, empate 1, derrota 0, mais um bónus de 0 a 5 pelo HLTV rating. No dia 1 de cada mês sai o top 10 e o MVP (mínimo {minimo} partidas).',
+                'Cada partida dá pontos: vitória 3, empate 1, derrota 0, mais um bónus de 0 a 5 pelo HLTV rating, e +1 se jogaste sem ninguém da tabela na equipa. No dia 1 de cada mês sai o top 10 e o MVP (mínimo {minimo} partidas).',
                 '',
                 '`/link` liga a tua conta Steam',
                 '`/add steam64 [user]` adiciona uma conta Steam pelo Steam64 ID',
@@ -140,7 +140,7 @@ const IDIOMAS = {
             categorias: { kills: 'kills', adr: 'ADR', aim: 'aim (accuracy)', hs: 'HS%', flashes: 'enemies flashed', flashpct: 'Flash %', teamflash: 'team flashes', hedmg: 'HE damage', ace: 'ACEs', k3: '3Ks', tradepct: 'trade %', matches: 'matches' },
             ajuda: [
                 "**Stats BOT** — this server's CS2 stats, from Leetify.",
-                'Each match gives points: win 3, draw 1, loss 0, plus a 0–5 bonus from the HLTV rating. On the 1st of each month the bot posts the top 10 and the MVP (at least {minimo} matches).',
+                'Each match gives points: win 3, draw 1, loss 0, plus a 0–5 bonus from the HLTV rating, and +1 if you played with nobody from the table on your team. On the 1st of each month the bot posts the top 10 and the MVP (at least {minimo} matches).',
                 '',
                 '`/link` link your Steam account',
                 '`/add steam64 [user]` add a Steam account by its Steam64 ID',

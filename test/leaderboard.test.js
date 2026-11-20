@@ -50,7 +50,8 @@ test('totals and averages for this month', () => {
     assert.strictEqual(l.aim, 77);
     assert.strictEqual(l.leetify, 0.05);
     const ps = db.partidasDe(['s1'], '2026-10-01', null);
-    assert.strictEqual(l.pontos, ps[0].points + ps[1].points);
+    // Both matches were played solo: +1 point each
+    assert.strictEqual(l.pontos, ps[0].points + ps[1].points + 2);
     assert.strictEqual(l.hltv, Math.round(((ps[0].hltv_rating + ps[1].hltv_rating) / 2) * 100) / 100);
 });
 
@@ -66,12 +67,20 @@ test('elegivel needs 5 matches in a monthly period, always true for sempre', () 
 
 test('sorted by points, then wins, then HLTV rating, then matches', () => {
     const db = abrirBD(':memory:');
+    // Every match has a linked teammate (z), so there is no solo bonus and only the tie-breaks decide
+    db.ligarJogador({ discordId: 'dz', steam64Id: 'z', nome: 'Z' });
+    let n = 0;
+    const comColega = (s64, opcoes) => {
+        const id = `t${++n}`;
+        partida(db, s64, { ...opcoes, id, initial_team_number: 2 });
+        partida(db, 'z', { id, initial_team_number: 2 });
+    };
     // b has the most points; a and c tie on points and wins, a has the higher average rating
-    partida(db, 'a', { kills: 30, deaths: 5, multi: [10, 10, 0, 0, 0] });           // V + 5 = 8
-    partida(db, 'b', { kills: 30, deaths: 5, multi: [10, 10, 0, 0, 0] });           // 8
-    partida(db, 'b', { v: 10, d: 10, kills: 0, deaths: 20, multi: [0, 0, 0, 0, 0] }); // draw, 1 + 0 → b = 9
-    partida(db, 'c', { kills: 30, deaths: 5, multi: [10, 10, 0, 0, 0] });           // 8, same as a
-    partida(db, 'c', { v: 0, d: 20, kills: 0, deaths: 20, multi: [0, 0, 0, 0, 0] }); // loss, 0 → 8 with 1 win, lower rating
+    comColega('a', { kills: 30, deaths: 5, multi: [10, 10, 0, 0, 0] });           // V + 5 = 8
+    comColega('b', { kills: 30, deaths: 5, multi: [10, 10, 0, 0, 0] });           // 8
+    comColega('b', { v: 10, d: 10, kills: 0, deaths: 20, multi: [0, 0, 0, 0, 0] }); // draw, 1 + 0 → b = 9
+    comColega('c', { kills: 30, deaths: 5, multi: [10, 10, 0, 0, 0] });           // 8, same as a
+    comColega('c', { v: 0, d: 20, kills: 0, deaths: 20, multi: [0, 0, 0, 0, 0] }); // loss, 0 → 8 with 1 win, lower rating
     const ordem = tabela(db, ['a', 'b', 'c'], 'mes', AGORA).map((l) => l.steam64Id);
     assert.deepStrictEqual(ordem, ['b', 'a', 'c']);
 });
@@ -253,4 +262,17 @@ test('tabela can keep only some match types', () => {
     assert.strictEqual(tabela(db, ['s1'], 'mes', AGORA)[0].partidas, 2);
     assert.strictEqual(tabela(db, ['s1'], 'mes', AGORA, { fontes: ['faceit'] })[0].partidas, 1);
     assert.deepStrictEqual(tabela(db, ['s1'], 'mes', AGORA, { fontes: ['matchmaking_competitive'] }), []);
+});
+
+test('solo bonus: +1 point for each match with no linked player on the team, and a Solo count', () => {
+    const db = abrirBD(':memory:');
+    db.ligarJogador({ discordId: 'd1', steam64Id: 's1', nome: 'Ana' });
+    db.ligarJogador({ discordId: 'd2', steam64Id: 's2', nome: 'Rui' });
+    partida(db, 's1', { id: 'a', initial_team_number: 2 });
+    partida(db, 's1', { id: 'b', initial_team_number: 2 });
+    partida(db, 's2', { id: 'b', initial_team_number: 2 });
+    const base = db.partidasDe(['s1'], null, null).reduce((t, p) => t + p.points, 0);
+    const [l] = tabela(db, ['s1'], 'mes', AGORA);
+    assert.strictEqual(l.solo, 1);
+    assert.strictEqual(l.pontos, base + 1);
 });

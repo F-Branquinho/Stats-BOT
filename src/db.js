@@ -318,7 +318,14 @@ function abrirBD(ficheiro) {
         if (steam64Ids.length === 0 || fontes?.length === 0) return [];
         const marcas = (lista) => lista.map(() => '?').join(', ');
         const filtroFontes = fontes ? `AND m.data_source IN (${marcas(fontes)})` : '';
-        return db.prepare(`SELECT pm.*, m.finished_at, m.map_name, m.data_source
+        // sozinho: no other linked player on the same team (without team data, any linked player in the match
+        // counts as company). Worked out here, not when storing, because a friend's row can arrive later.
+        return db.prepare(`SELECT pm.*, m.finished_at, m.map_name, m.data_source,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM player_matches o JOIN players pl ON pl.steam64_id = o.steam64_id
+                    WHERE o.match_id = pm.match_id AND o.steam64_id <> pm.steam64_id
+                      AND (pm.team IS NULL OR o.team IS NULL OR o.team = pm.team)
+                ) THEN 0 ELSE 1 END AS sozinho
             FROM player_matches pm JOIN matches m ON m.id = pm.match_id
             WHERE pm.counted = 1 AND pm.steam64_id IN (${marcas(steam64Ids)}) ${filtroFontes}
               AND (? IS NULL OR m.finished_at >= ?) AND (? IS NULL OR m.finished_at < ?)

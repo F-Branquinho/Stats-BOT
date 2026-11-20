@@ -38,6 +38,7 @@ const TABELAS = [
             // Sorted by wins in the last 5; the cell shows them as squares (oldest first)
             ['forma', 'Form', (_, l) => [...(l.formaTexto ?? '')].map((r) => QUADRADOS[r] ?? '').join(''), false, (l) => `Current streak: ${l.sequenciaAtual}`],
             ['pontos', 'Points', String],
+            ['solo', 'Solo', ou(String)],
             ['hltv', 'HLTV', decimal],
             ['adr', 'ADR', inteiro],
             ['kills', 'Kills', String],
@@ -241,7 +242,7 @@ ${topoServidor(guild, `CS2 stats · ${nomePeriodo(periodo)}`)}
 <nav class="periodos">${tipos}</nav>
 ${linhas.length ? renderTabela(principal) : vazio}
 ${mensal && linhas.length ? `<p class="legenda">${periodo === 'mes' ? 'Leading this month' : 'Winners'}: ${LEGENDA}</p>` : ''}
-<p class="ajuda">Points per match: win 3, draw 1, loss 0, plus 0–5 for the HLTV 1.0 rating (0.80 → 1, 0.95 → 2, 1.05 → 3, 1.20 → 4, 1.40 → 5).
+<p class="ajuda">Points per match: win 3, draw 1, loss 0, plus 0–5 for the HLTV 1.0 rating (0.80 → 1, 0.95 → 2, 1.05 → 3, 1.20 → 4, 1.40 → 5), and +1 for each match played solo (no other player from this table on the team). Solo is how many.
 MVP of the month: most points with at least 5 matches. Aim, Clutch and Opening are the current Leetify ratings.</p>
 ${linhas.length ? outras.map(renderTabela).join('\n') : ''}
 ${linhas.length ? [seccaoRecordes, seccaoDuos, seccaoMapas].join('\n') : ''}
@@ -272,7 +273,7 @@ function paginaPerfil({ sessao, guild, jogador, total, meses, partidas, mapas = 
   <td><span class="res-${esc(p.result)}">${esc(p.rounds_won)}–${esc(p.rounds_lost)}</span></td>
   <td>${esc(p.kills)}–${esc(p.deaths)}</td>
   <td>${decimal(p.hltv_rating)}</td>
-  <td>${esc(p.points)}</td>
+  <td>${esc(p.points + (p.sozinho ? 1 : 0))}${p.sozinho ? ' <span class="nota" title="Played solo: +1">solo</span>' : ''}</td>
 </tr>`;
     }).join('');
 

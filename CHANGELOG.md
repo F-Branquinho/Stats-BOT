@@ -2,6 +2,11 @@
 
 Each version is a GitHub tag. To install a specific version, see [Versions](README.md#versions) in the README.
 
+## v0.12.0
+
+- **Solo bonus: +1 point** for each match with no other linked player on your team. It counts for the table, `/stats`, `/top`, `/mvp` and the monthly report. It is worked out when the table is shown, so it stays right when a friend's version of the same match arrives later.
+- New **Solo** column in the main table (solo matches in the period); solo matches are marked on the player profile, with the bonus included in their points.
+
 ## v0.11.1
 
 - `/refresh` (Manage Server): fetches everyone's new matches from Leetify and FACEIT right away, at any time of day, and says how many were new.
